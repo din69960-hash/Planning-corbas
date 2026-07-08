@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Créneaux des Équipements de Corbas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bleu:  #1a3a5c;
+    --bleu2: #2563a8;
+    --or:    #c8972a;
+    --or2:   #f0b429;
+    --clair: #f4f7fb;
+    --blanc: #ffffff;
+    --gris:  #e2e8f0;
+    --gris2: #64748b;
+    --rouge: #c0392b;
+    --vert:  #1a7a4a;
+    --r:     10px;
+    --r2:    18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--clair); color: var(--bleu); min-height: 100vh; }
+
+  /* ===== LOGIN ===== */
+  #screen-login {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: linear-gradient(140deg,#0d2140 0%,#1a3a5c 50%,#2563a8 100%);
+    position: relative; overflow: hidden;
+  }
+  #screen-login::before {
+    content:''; position:absolute;
+    width:500px;height:500px;border-radius:50%;
+    background:radial-gradient(circle,rgba(200,151,42,.18) 0%,transparent 70%);
+    top:-150px;right:-150px;pointer-events:none;
+  }
+  .login-logo { text-align:center; margin-bottom:48px; position:relative; z-index:1; }
+  .login-badge {
+    display:inline-block; background:var(--or); color:#fff;
+    font-family:'Syne',sans-serif; font-size:11px; font-weight:700;
+    letter-spacing:3px; text-transform:uppercase;
+    padding:5px 16px; border-radius:20px; margin-bottom:18px;
+  }
+  .login-logo h1 {
+    font-family:'Syne',sans-serif; font-size:clamp(26px,4vw,46px);
+    font-weight:800; color:#fff; line-height:1.15; max-width:520px;
+  }
+  .login-logo h1 span { color:var(--or2); }
+  .login-logo p { color:rgba(255,255,255,.55); margin-top:10px; font-size:14px; }
+
+  .login-cards { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; position:relative; z-index:1; }
+  .login-card {
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15);
+    backdrop-filter:blur(10px); border-radius:var(--r2);
+    padding:36px 28px; width:260px; text-align:center; cursor:pointer;
+    transition:all .3s;
+  }
+  .login-card:hover { background:rgba(255,255,255,.14); border-color:var(--or); transform:translateY(-4px); }
+  .login-card .icon { font-size:38px; margin-bottom:14px; }
+  .login-card h2 { font-family:'Syne',sans-serif; font-size:19px; font-weight:700; color:#fff; margin-bottom:6px; }
+  .login-card p { font-size:13px; color:rgba(255,255,255,.5); line-height:1.5; margin-bottom:20px; }
+  .btn-enter {
+    background:var(--or); color:#fff;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:13px;
+    padding:9px 24px; border-radius:30px; border:none; cursor:pointer; transition:.2s;
+  }
+  .btn-enter:hover { background:var(--or2); }
+
+  /* ===== MODAL ===== */
+  .modal-ov {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,.55); z-index:1000;
+    align-items:center; justify-content:center;
+  }
+  .modal-ov.on { display:flex; }
+  .modal-box {
+    background:#fff; border-radius:var(--r2); padding:36px;
+    width:340px; text-align:center;
+    box-shadow:0 16px 60px rgba(0,0,0,.25);
+    animation:pop .22s ease;
+  }
+  @keyframes pop { from{transform:scale(.9);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal-box h3 { font-family:'Syne',sans-serif; font-size:21px; font-weight:700; color:var(--bleu); margin-bottom:6px; }
+  .modal-box p { color:var(--gris2); font-size:13px; margin-bottom:20px; }
+  .modal-box input {
+    width:100%; padding:11px 14px; border:2px solid var(--gris);
+    border-radius:var(--r); font-size:16px; text-align:center;
+    letter-spacing:4px; outline:none; transition:.2s; font-family:inherit;
+  }
+  .modal-box input:focus { border-color:var(--bleu2); }
+  .modal-box input.err { border-color:var(--rouge); }
+  .err-msg { color:var(--rouge); font-size:13px; margin-top:6px; display:none; }
+  .err-msg.on { display:block; }
+  .modal-btns { display:flex; gap:10px; margin-top:20px; }
+
+  /* ===== BOUTONS ===== */
+  .btn {
+    flex:1; padding:11px; border-radius:var(--r);
+    font-family:'Syne',sans-serif; font-weight:700; font-size:13px;
+    cursor:pointer; border:none; transition:.2s;
+  }
+  .btn-primary { background:var(--bleu); color:#fff; }
+  .btn-primary:hover { background:var(--bleu2); }
+  .btn-secondary { background:var(--gris); color:var(--bleu); }
+  .btn-secondary:hover { background:#d1dce8; }
+  .btn-danger { background:var(--rouge); color:#fff; }
+  .btn-success { background:var(--vert); color:#fff; }
+  .btn-or { background:var(--or); color:#fff; }
+  .btn-or:hover { background:var(--or2); }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+
+  /* ===== APP LAYOUT ===== */
+  .app { display:none; flex-direction:column; min-height:100vh; }
+  .app.on { display:flex; }
+
+  .app-header {
+    background:var(--bleu); color:#fff;
+    padding:0 28px; height:60px;
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:100;
+    box-shadow:0 2px 12px rgba(0,0,0,.2);
+  }
+  .hdr-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:17px; display:flex; align-items:center; gap:8px; }
+  .hdr-logo span { color:var(--or2); }
+  .hdr-right { display:flex; align-items:center; gap:12px; }
+  .role-badge {
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2);
+    border-radius:20px; padding:3px 12px; font-size:11px; font-weight:700;
+    letter-spacing:1px; text-transform:uppercase;
+  }
+  .role-badge.admin { background:rgba(200,151,42,.25); border-color:var(--or); color:var(--or2); }
+  .btn-logout {
+    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2);
+    color:#fff; padding:5px 14px; border-radius:20px; font-size:12px;
+    cursor:pointer; transition:.2s; font-family:inherit;
+  }
+  .btn-logout:hover { background:rgba(255,255,255,.2); }
+
+  .app-body { flex:1; padding:28px; max-width:1200px; margin:0 auto; width:100%; }
+
+  .page { display:none; }
+  .page.on { display:block; }
+
+  .section-title {
+    font-family:'Syne',sans-serif; font-size:22px; font-weight:800;
+    color:var(--bleu); margin-bottom:28px; padding-bottom:14px;
+    border-bottom:3px solid var(--or);
+  }
+
+  .breadcrumb {
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:24px; font-size:13px; color:var(--gris2);
+  }
+  .breadcrumb .bc-link { cursor:pointer; color:var(--bleu2); text-decoration:underline; }
+  .breadcrumb .bc-cur { color:var(--bleu); font-weight:600; }
+
+  /* ===== MENU ASSO ===== */
+  .asso-menu { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; max-width:640px; margin:40px auto; }
+  .menu-card {
+    background:#fff; border-radius:var(--r2); padding:36px 28px;
+    text-align:center; box-shadow:0 3px 18px rgba(26,58,92,.1);
+    cursor:pointer; transition:all .25s; border:2px solid transparent;
+  }
+  .menu-card:hover { border-color:var(--bleu2); transform:translateY(-3px); box-shadow:0 8px 30px rgba(26,58,92,.15); }
+  .menu-card .icon { font-size:44px; margin-bottom:14px; }
+  .menu-card h3 { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--bleu); margin-bottom:6px; }
+  .menu-card p { font-size:13px; color:var(--gris2); }
+
+  /* ===== FORM ===== */
+  .card { background:#fff; border-radius:var(--r2); padding:36px; box-shadow:0 3px 18px rgba(26,58,92,.08); }
+  .form-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:18px; margin-bottom:28px; }
+  .form-group { }
+  .form-group label {
+    display:block; font-size:12px; font-weight:600;
+    color:var(--gris2); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;
+  }
+  .form-group input, .form-group select {
+    width:100%; padding:10px 14px; border:2px solid var(--gris);
+    border-radius:var(--r); font-size:14px; font-family:inherit;
+    color:var(--bleu); outline:none; background:#fff; transition:.2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color:var(--bleu2); }
+
+  /* ===== PLANNING TABLE SAISIE ===== */
+  /* Structure :
+     Col 0 : étiquette créneau (fixe)
+     Puis pour chaque jour : 3 colonnes -> Espace | Début | Fin
+  */
+  .table-wrap { overflow-x:auto; border-radius:var(--r); border:1px solid var(--gris); margin-bottom:20px; }
+  .ptable { width:100%; border-collapse:collapse; font-size:13px; min-width:900px; }
+
+  .ptable th {
+    background:var(--bleu); color:#fff;
+    font-family:'Syne',sans-serif; font-weight:700;
+    padding:10px 6px; text-align:center; font-size:12px;
+    white-space:nowrap;
+  }
+  .ptable th.th-jour {
+    background:var(--bleu2); font-size:13px;
+    border-left:2px solid rgba(255,255,255,.3);
+  }
+  .ptable th.th-sub {
+    background:#1e4d82; font-size:11px; font-weight:500;
+    border-left:1px solid rgba(255,255,255,.15);
+  }
+  .ptable th.th-sub.sub-espace { background:#1e4d82; }
+  .ptable th.th-sub.sub-debut  { background:#1a4472; }
+  .ptable th.th-sub.sub-fin    { background:#173d66; }
+
+  .ptable td {
+    padding:5px 4px; border:1px solid var(--gris);
+    vertical-align:middle; background:#fff;
+  }
+  .ptable tr:nth-child(even) td { background:#f8fafd; }
+  .ptable td.td-label {
+    background:var(--bleu); color:#fff;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:11px;
+    text-align:center; padding:6px 8px; white-space:nowrap;
+    border-left:0; min-width:80px;
+  }
+  .ptable td.td-espace { min-width:120px; }
+  .ptable td.td-time   { min-width:80px; }
+
+  /* Cellule espace : select visible */
+  .ptable select.sel-espace {
+    width:100%; padding:6px 8px; border:1px solid var(--gris);
+    border-radius:6px; font-size:12px; font-family:inherit;
+    color:var(--bleu); background:#fff; cursor:pointer; outline:none;
+    transition:.15s;
+  }
+  .ptable select.sel-espace:hover, .ptable select.sel-espace:focus { border-color:var(--bleu2); background:#eef4fb; }
+
+  /* Time picker */
+  .tp-wrap { position:relative; }
+  .tp-input {
+    width:100%; padding:6px 8px; border:1px solid var(--gris);
+    border-radius:6px; font-size:12px; font-family:inherit;
+    color:var(--bleu); background:#fff; cursor:pointer; outline:none;
+    text-align:center; transition:.15s; white-space:nowrap;
+  }
+  .tp-input:hover, .tp-input:focus { border-color:var(--bleu2); background:#eef4fb; }
+  .tp-input::placeholder { color:#aaa; }
+  .tp-drop {
+    display:none; position:absolute; top:100%; left:0; z-index:300;
+    background:#fff; border:1px solid var(--gris); border-radius:var(--r);
+    box-shadow:0 8px 28px rgba(26,58,92,.15);
+    max-height:180px; overflow-y:auto; min-width:90px;
+  }
+  .tp-drop.on { display:block; }
+  .tp-opt {
+    padding:7px 12px; font-size:13px; cursor:pointer;
+    color:var(--bleu); transition:background .1s; white-space:nowrap;
+  }
+  .tp-opt:hover { background:var(--clair); }
+  .tp-opt.sel { background:var(--bleu); color:#fff; font-weight:600; }
+
+  .btn-add {
+    background:var(--clair); border:2px dashed #b0bbc8;
+    border-radius:var(--r); padding:9px 18px;
+    font-family:'Syne',sans-serif; font-weight:600; color:var(--gris2);
+    font-size:13px; cursor:pointer; transition:.2s; margin-bottom:20px;
+  }
+  .btn-add:hover { background:#dce6f0; color:var(--bleu); border-color:var(--bleu2); }
+  .form-actions { display:flex; gap:12px; justify-content:flex-end; }
+  .form-actions .btn { flex:none; min-width:130px; padding:12px 20px; }
+
+  /* ===== PLANNING VUE (Consultation / Admin) ===== */
+  .pv-card { background:#fff; border-radius:var(--r2); box-shadow:0 3px 18px rgba(26,58,92,.08); overflow:hidden; }
+  .pv-header {
+    background:var(--bleu); color:#fff; padding:18px 24px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .pv-header h3 { font-family:'Syne',sans-serif; font-weight:700; font-size:17px; }
+  .pv-header small { font-size:12px; opacity:.65; }
+  .pv-body { overflow-x:auto; }
+
+  .vtable { width:100%; border-collapse:collapse; font-size:13px; min-width:700px; }
+  .vtable th {
+    background:var(--bleu2); color:#fff; padding:10px 12px;
+    text-align:center; font-family:'Syne',sans-serif; font-weight:700; font-size:12px;
+  }
+  .vtable td { padding:10px 12px; border-bottom:1px solid var(--gris); text-align:center; vertical-align:middle; }
+  .vtable tr:last-child td { border-bottom:none; }
+  .vtable tr:hover td { background:#f0f5fc; }
+  .vtable .day-header { background:#e8f0f8; font-weight:700; font-size:12px; color:var(--bleu2); }
+
+  .tag {
+    display:inline-block; border-radius:20px;
+    padding:3px 10px; font-size:11px; font-weight:700; margin:2px;
+  }
+  .tag-asso { background:#dbeafe; color:#1e3a8a; }
+  .tag-hr   { background:#fef9c3; color:#713f12; }
+  .tag-lieu { background:#dcfce7; color:#14532d; }
+
+  /* Planning hebdo vide (grille jours x espaces) */
+  .empty-grid { padding:20px; }
+  .empty-grid table { width:100%; border-collapse:collapse; font-size:12px; }
+  .empty-grid th {
+    background:var(--bleu2); color:#fff;
+    padding:8px 10px; text-align:center; font-size:12px;
+  }
+  .empty-grid td { padding:8px 10px; border:1px solid var(--gris); color:var(--gris2); text-align:center; }
+  .empty-grid td.jour-label { background:var(--clair); font-weight:700; color:var(--bleu); font-size:11px; }
+
+  .empty-state { text-align:center; padding:48px 20px; color:var(--gris2); }
+  .empty-state .icon { font-size:44px; margin-bottom:14px; }
+
+  .filters { display:flex; gap:14px; margin-bottom:22px; flex-wrap:wrap; align-items:flex-end; }
+  .filters .form-group { flex:1; min-width:160px; margin:0; }
+
+  /* Lock notice */
+  .lock-notice {
+    background:#fff5f5; border:1px solid #fca5a5;
+    border-radius:var(--r); padding:10px 14px; font-size:13px; color:var(--rouge);
+    margin-bottom:18px; display:none; align-items:center; gap:8px;
+  }
+  .lock-notice.on { display:flex; }
+
+  /* ===== ADMIN ===== */
+  .admin-wrap { display:grid; grid-template-columns:240px 1fr; gap:24px; }
+  .admin-sidebar {
+    background:#fff; border-radius:var(--r2);
+    box-shadow:0 3px 18px rgba(26,58,92,.08);
+    padding:20px 0; height:fit-content;
+  }
+  .sidebar-lbl {
+    font-family:'Syne',sans-serif; font-size:10px; font-weight:700;
+    color:var(--gris2); letter-spacing:2px; text-transform:uppercase;
+    padding:0 20px 10px; border-bottom:1px solid var(--gris); margin-bottom:6px;
+  }
+  .nav-item {
+    display:flex; align-items:center; gap:10px;
+    padding:10px 20px; cursor:pointer; font-size:14px; font-weight:500;
+    color:var(--bleu); border-left:3px solid transparent; transition:.15s;
+  }
+  .nav-item:hover { background:var(--clair); }
+  .nav-item.on { background:#edf3fb; border-left-color:var(--bleu2); color:var(--bleu2); font-weight:600; }
+
+  .admin-content { background:#fff; border-radius:var(--r2); padding:32px; box-shadow:0 3px 18px rgba(26,58,92,.08); }
+
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:28px; }
+  .stat-card { background:var(--clair); border-radius:var(--r); padding:20px; border-left:4px solid var(--bleu2); }
+  .stat-val { font-family:'Syne',sans-serif; font-size:28px; font-weight:800; color:var(--bleu); }
+  .stat-lbl { font-size:12px; color:var(--gris2); margin-top:4px; }
+
+  .set-section {
+    margin-bottom:26px; padding:24px; background:var(--clair);
+    border-radius:var(--r); border:1px solid var(--gris);
+  }
+  .set-section h4 {
+    font-family:'Syne',sans-serif; font-size:15px; font-weight:700;
+    color:var(--bleu); margin-bottom:14px; display:flex; align-items:center; gap:8px;
+  }
+  .inline-f { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+  .inline-f .form-group { flex:1; min-width:140px; margin:0; }
+
+  .lock-status { display:flex; align-items:center; gap:14px; padding:16px 20px; border-radius:var(--r); border:2px solid; margin-bottom:14px; }
+  .lock-status.locked  { background:#fff5f5; border-color:var(--rouge); }
+  .lock-status.open    { background:#f0faf4; border-color:var(--vert); }
+  .lock-status .lk-icon { font-size:28px; }
+  .lock-status h4 { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; }
+  .lock-status p  { font-size:12px; color:var(--gris2); }
+
+  /* Toast */
+  .toast {
+    position:fixed; bottom:28px; right:28px;
+    background:var(--bleu); color:#fff;
+    padding:12px 20px; border-radius:var(--r); font-size:14px; font-weight:500;
+    box-shadow:0 8px 28px rgba(0,0,0,.2); z-index:9999;
+    transform:translateY(70px); opacity:0; transition:all .3s;
+    max-width:340px;
+  }
+  .toast.on { transform:translateY(0); opacity:1; }
+  .toast.ok  { background:var(--vert); }
+  .toast.err { background:var(--rouge); }
+  .toast.warn { background:var(--or); color:var(--bleu); }
+
+  @media(max-width:768px){
+    .app-body{padding:14px;}
+    .admin-wrap{grid-template-columns:1fr;}
+    .card,.admin-content{padding:18px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="screen-login">
+  <div class="login-logo">
+    <div class="login-badge">Ville de Corbas</div>
+    <h1>Créneaux des <span>Équipements</span><br>Sportifs de Corbas</h1>
+    <p>Plateforme de gestion des réservations d'espaces sportifs</p>
+  </div>
+  <div class="login-cards">
+    <div class="login-card" onclick="openModal('asso')">
+      <div class="icon">🏃</div>
+      <h2>Association</h2>
+      <p>Saisissez et consultez vos créneaux sur les équipements municipaux</p>
+      <button class="btn-enter">Accéder →</button>
+    </div>
+    <div class="login-card" onclick="openModal('admin')">
+      <div class="icon">⚙️</div>
+      <h2>Administrateur</h2>
+      <p>Gérez les plannings, les accès et les paramètres</p>
+      <button class="btn-enter">Accéder →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MDP -->
+<div class="modal-ov" id="modal-pwd">
+  <div class="modal-box">
+    <h3 id="modal-title">Accès</h3>
+    <p id="modal-sub">Saisissez le mot de passe</p>
+    <input type="password" id="modal-in" placeholder="••••••" maxlength="40"
+           onkeydown="if(event.key==='Enter')checkPwd()">
+    <div class="err-msg" id="modal-err">❌ Mot de passe incorrect</div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="checkPwd()">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP ASSO -->
+<div class="app" id="app-asso">
+  <header class="app-header">
+    <div class="hdr-logo">🏟️ <span>Créneaux</span> Corbas</div>
+    <div class="hdr-right">
+      <span class="role-badge" id="demo-badge-asso" style="display:none;background:rgba(240,180,41,.25);border-color:var(--or2);color:var(--or2)">🧪 MODE TEST</span>
+      <span class="role-badge">Association</span>
+      <button class="btn-logout" onclick="logout()">Déconnexion</button>
+    </div>
+  </header>
+  <div class="app-body">
+
+    <!-- Mode démo notice -->
+    <div id="demo-notice-asso" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 16px;margin-bottom:18px;font-size:13px;color:#92400e;display:flex;align-items:center;gap:8px">
+      🧪 <strong>Mode test local</strong> — Les données sont sauvegardées dans votre navigateur uniquement. Configurez Supabase pour la mise en production.
+    </div>
+
+    <!-- Menu -->
+    <div id="p-menu" class="page on">
+      <div class="section-title">🏠 Espace Association</div>
+      <div class="asso-menu">
+        <div class="menu-card" onclick="goPage('p-saisie')">
+          <div class="icon">📝</div>
+          <h3>Saisir votre planning</h3>
+          <p>Enregistrez vos créneaux pour la saison</p>
+        </div>
+        <div class="menu-card" onclick="goConsult()">
+          <div class="icon">📅</div>
+          <h3>Consulter le planning</h3>
+          <p>Visualisez tous les créneaux de l'équipement</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saisie -->
+    <div id="p-saisie" class="page">
+      <div class="breadcrumb">
+        <span class="bc-link" onclick="goPage('p-menu')">🏠 Accueil</span>
+        <span>&nbsp;›&nbsp;</span>
+        <span class="bc-cur">Saisir le planning</span>
+      </div>
+      <div class="lock-notice on" id="lock-notice-saisie" style="display:none">
+        🔒 Le site est verrouillé — modification impossible pour le moment.
+      </div>
+      <div class="card">
+        <div class="section-title">📝 Saisie du planning</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Votre association</label>
+            <input type="text" id="asso-name" placeholder="Ex : Club de Handball de Corbas">
+          </div>
+          <div class="form-group">
+            <label>Lieu de pratique</label>
+            <select id="asso-lieu" onchange="majEspaces()">
+              <option value="">— Choisir un lieu —</option>
+              <option value="alice_milliat">Espace sportif Alice Milliat</option>
+              <option value="taillis">Complexe des Taillis</option>
+              <option value="roses">Gymnase des Roses</option>
+              <option value="falcot">Gymnase Jean Falcot</option>
+              <option value="jaures">Gymnase Jean Jaurès</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="ptable" id="ptable">
+            <thead>
+              <tr id="thead-jour">
+                <th rowspan="2" style="min-width:90px;background:#0f2b46"></th>
+              </tr>
+              <tr id="thead-sub"></tr>
+            </thead>
+            <tbody id="ptbody"></tbody>
+          </table>
+        </div>
+
+        <button class="btn-add" onclick="addCreneau()">＋ Ajouter un créneau</button>
+        <div class="form-actions">
+          <button class="btn btn-secondary" style="flex:none;min-width:120px" onclick="resetSaisie()">Réinitialiser</button>
+          <button class="btn btn-primary" style="flex:none;min-width:140px" id="btn-save" onclick="savePlanning()">💾 Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Consultation -->
+    <div id="p-consult" class="page">
+      <div class="breadcrumb">
+        <span class="bc-link" onclick="goPage('p-menu')">🏠 Accueil</span>
+        <span>&nbsp;›&nbsp;</span>
+        <span class="bc-cur">Consulter le planning</span>
+      </div>
+      <div class="filters">
+        <div class="form-group">
+          <label>Équipement</label>
+          <select id="cf-lieu" onchange="loadConsult()">
+            <option value="">— Tous les équipements —</option>
+            <option value="alice_milliat">Alice Milliat</option>
+            <option value="taillis">Complexe des Taillis</option>
+            <option value="roses">Gymnase des Roses</option>
+            <option value="falcot">Jean Falcot</option>
+            <option value="jaures">Jean Jaurès</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Jour</label>
+          <select id="cf-jour" onchange="loadConsult()">
+            <option value="">— Tous les jours —</option>
+            <option>Lundi</option><option>Mardi</option><option>Mercredi</option>
+            <option>Jeudi</option><option>Vendredi</option><option>Samedi</option><option>Dimanche</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="loadConsult()" style="flex:none;min-width:110px;padding:10px 16px">🔍 Afficher</button>
+      </div>
+      <div class="pv-card">
+        <div class="pv-header">
+          <h3>📋 Planning de l'équipement</h3>
+          <small id="consult-count"></small>
+        </div>
+        <div class="pv-body" id="consult-body"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- APP ADMIN -->
+<div class="app" id="app-admin">
+  <header class="app-header">
+    <div class="hdr-logo">🏟️ <span>Créneaux</span> Corbas</div>
+    <div class="hdr-right">
+      <span class="role-badge" id="demo-badge-admin" style="display:none;background:rgba(240,180,41,.25);border-color:var(--or2);color:var(--or2)">🧪 MODE TEST</span>
+      <span class="role-badge admin">Administrateur</span>
+      <button class="btn-logout" onclick="logout()">Déconnexion</button>
+    </div>
+  </header>
+  <div class="app-body">
+    <div class="admin-wrap">
+
+      <div class="admin-sidebar">
+        <div class="sidebar-lbl">Navigation</div>
+        <div class="nav-item on" id="nav-dash"     onclick="adminNav('dash')">📊 Tableau de bord</div>
+        <div class="nav-item"    id="nav-plannings" onclick="adminNav('plannings')">📅 Plannings</div>
+        <div class="nav-item"    id="nav-settings"  onclick="adminNav('settings')">⚙️ Paramètres</div>
+      </div>
+
+      <div class="admin-content">
+
+        <!-- Dashboard -->
+        <div id="adm-dash" class="page on">
+          <div class="section-title">📊 Tableau de bord</div>
+          <div class="stats-grid">
+            <div class="stat-card"><div class="stat-val" id="s-cren">—</div><div class="stat-lbl">Créneaux enregistrés</div></div>
+            <div class="stat-card" style="border-color:var(--or)"><div class="stat-val" id="s-asso">—</div><div class="stat-lbl">Associations</div></div>
+            <div class="stat-card" style="border-color:var(--vert)"><div class="stat-val">5</div><div class="stat-lbl">Équipements</div></div>
+            <div class="stat-card" style="border-color:var(--rouge)"><div class="stat-val" id="s-lock">🔓</div><div class="stat-lbl">État du site</div></div>
+          </div>
+          <div class="section-title" style="font-size:17px;margin-top:4px">Dernières saisies</div>
+          <div id="adm-recent"><div class="empty-state"><div class="icon">📭</div><p>Chargement…</p></div></div>
+        </div>
+
+        <!-- Plannings admin -->
+        <div id="adm-plannings" class="page">
+          <div class="section-title">📅 Plannings</div>
+          <div class="filters">
+            <div class="form-group">
+              <label>Équipement</label>
+              <select id="adm-lieu" onchange="admLoadPlan()">
+                <option value="">— Choisir —</option>
+                <option value="alice_milliat">Alice Milliat</option>
+                <option value="taillis">Complexe des Taillis</option>
+                <option value="roses">Gymnase des Roses</option>
+                <option value="falcot">Jean Falcot</option>
+                <option value="jaures">Jean Jaurès</option>
+              </select>
+            </div>
+            <button class="btn btn-danger" onclick="deleteSelected()" style="flex:none;min-width:130px;padding:10px 16px">🗑️ Supprimer</button>
+          </div>
+          <div id="adm-plan-body"><div class="empty-state"><div class="icon">📋</div><p>Choisissez un équipement</p></div></div>
+        </div>
+
+        <!-- Settings -->
+        <div id="adm-settings" class="page">
+          <div class="section-title">⚙️ Paramètres</div>
+
+          <div class="set-section">
+            <h4>🔒 Verrouillage du site</h4>
+            <div id="lock-disp"></div>
+            <div style="display:flex;gap:10px">
+              <button class="btn btn-danger"  style="flex:none;min-width:120px;padding:10px 16px" onclick="setLock(true)">🔒 Verrouiller</button>
+              <button class="btn btn-success" style="flex:none;min-width:120px;padding:10px 16px" onclick="setLock(false)">🔓 Déverrouiller</button>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <h4>🏃 Mot de passe Association</h4>
+            <div class="inline-f">
+              <div class="form-group"><label>Nouveau</label><input type="password" id="np-asso" placeholder="Nouveau mot de passe"></div>
+              <div class="form-group"><label>Confirmer</label><input type="password" id="cp-asso" placeholder="Confirmer"></div>
+              <button class="btn btn-primary" style="flex:none;min-width:100px;padding:10px 14px" onclick="changePwd('asso')">Modifier</button>
+            </div>
+          </div>
+
+          <div class="set-section">
+            <h4>⚙️ Mot de passe Administrateur</h4>
+            <div class="inline-f">
+              <div class="form-group"><label>Nouveau</label><input type="password" id="np-adm" placeholder="Nouveau mot de passe"></div>
+              <div class="form-group"><label>Confirmer</label><input type="password" id="cp-adm" placeholder="Confirmer"></div>
+              <button class="btn btn-primary" style="flex:none;min-width:100px;padding:10px 14px" onclick="changePwd('admin')">Modifier</button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /admin-content -->
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== CONFIG SUPABASE =====
+const SB_URL  = 'https://nvufzwdwhearlwdcezsn.supabase.co';
+const SB_ANON = 'sb_publishable_Ts29xuGykGP-xQ7R5ldKYg_J8Ywxnwl';
+// sb = null => mode démo localStorage automatique
+let sb = null;
+const SB_CONFIGURED = !SB_URL.includes('VOTRE_PROJET');
+if(SB_CONFIGURED){
+  try { sb = supabase.createClient(SB_URL, SB_ANON); } catch(e) {}
+}
+// Identifiant unique de ce navigateur (anti-écho realtime)
+const CLIENT_ID = 'c_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+// ===== ÉTAT =====
+const S = {
+  role: null, pending: null,
+  locked: false,
+  pwdAsso: 'Corbas', pwdAdmin: 'Corbas',
+  nbCren: 3
+};
+
+const JOURS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+
+const ESPACES = {
+  alice_milliat: ['Mezzanine','Grande salle'],
+  taillis: ['Gymnase','Dojo karaté','Dojo judo','Terrain pétanque','Terrain de foot',
+            "Pas de tir à l'arc",'Espace tennis intérieur','Espace tennis extérieur',
+            'Padel','Terrain boule lyonnaise'],
+  roses: ['Espace gymnastique',"Espace tir à l'arc",'Espace boxe','Espace squash'],
+  falcot: ["Mur d'escalade",'Grande salle','Petite salle','Mezzanine'],
+  jaures: ['Petite salle','Grande salle']
+};
+
+const LIEU_LABELS = {
+  alice_milliat:'Alice Milliat', taillis:'Complexe des Taillis',
+  roses:'Gymnase des Roses', falcot:'Jean Falcot', jaures:'Jean Jaurès'
+};
+
+// Créneaux horaires 08:00–23:00 par 15 min
+const TIMES = [];
+for(let h=8;h<23;h++) for(let m=0;m<60;m+=15)
+  TIMES.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+TIMES.push('23:00');
+
+// ===== AUTH =====
+function openModal(role){
+  S.pending = role;
+  document.getElementById('modal-title').textContent = role==='asso' ? 'Accès Association' : 'Accès Administrateur';
+  document.getElementById('modal-sub').textContent = role==='asso' ? 'Mot de passe associatif' : 'Mot de passe administrateur';
+  document.getElementById('modal-in').value='';
+  document.getElementById('modal-in').classList.remove('err');
+  document.getElementById('modal-err').classList.remove('on');
+  document.getElementById('modal-pwd').classList.add('on');
+  setTimeout(()=>document.getElementById('modal-in').focus(),80);
+}
+function closeModal(){ document.getElementById('modal-pwd').classList.remove('on'); }
+function checkPwd(){
+  const v = document.getElementById('modal-in').value.trim();
+  const ok = S.pending==='asso' ? v===S.pwdAsso : v===S.pwdAdmin;
+  if(ok){ closeModal(); login(S.pending); }
+  else{
+    document.getElementById('modal-in').classList.add('err');
+    document.getElementById('modal-err').classList.add('on');
+    document.getElementById('modal-in').select();
+  }
+}
+function login(role){
+  S.role = role;
+  document.getElementById('screen-login').style.display='none';
+  // Afficher badge mode test si Supabase non configuré
+  const isDemo = !SB_CONFIGURED;
+  if(isDemo){
+    document.getElementById('demo-badge-asso')?.style && (document.getElementById('demo-badge-asso').style.display='inline-block');
+    document.getElementById('demo-badge-admin')?.style && (document.getElementById('demo-badge-admin').style.display='inline-block');
+    document.getElementById('demo-notice-asso') && (document.getElementById('demo-notice-asso').style.display='flex');
+  }
+  if(role==='asso'){
+    document.getElementById('app-asso').classList.add('on');
+    loadLock(); buildTable();
+  } else {
+    document.getElementById('app-admin').classList.add('on');
+    loadLock(); loadDash();
+  }
+}
+function logout(){
+  S.role=null;
+  document.getElementById('app-asso').classList.remove('on');
+  document.getElementById('app-admin').classList.remove('on');
+  document.getElementById('screen-login').style.display='flex';
+  goPage('p-menu');
+}
+
+// ===== NAV =====
+function goPage(id){
+  document.querySelectorAll('#app-asso .page').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id)?.classList.add('on');
+}
+function goConsult(){
+  goPage('p-consult');
+  renderEmptyConsult();
+}
+function adminNav(sec){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('on'));
+  document.getElementById('nav-'+sec)?.classList.add('on');
+  document.querySelectorAll('#app-admin .page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('adm-'+sec)?.classList.add('on');
+  if(sec==='settings') renderLockStatus();
+}
+
+// ===== VERROU =====
+async function loadLock(){
+  if(sb){
+    try{
+      const {data} = await sb.from('settings').select('value').eq('key','locked').single();
+      S.locked = data?.value==='true';
+    }catch(e){}
+  }
+  applyLock();
+}
+function applyLock(){
+  const n = document.getElementById('lock-notice-saisie');
+  const b = document.getElementById('btn-save');
+  if(n){ if(S.locked) n.style.display='flex'; else n.style.display='none'; }
+  if(b) b.disabled = S.locked;
+  renderLockStatus();
+  const sv = document.getElementById('s-lock');
+  if(sv) sv.textContent = S.locked ? '🔒' : '🔓';
+}
+function renderLockStatus(){
+  const el = document.getElementById('lock-disp');
+  if(!el) return;
+  el.innerHTML=`<div class="lock-status ${S.locked?'locked':'open'}">
+    <div class="lk-icon">${S.locked?'🔒':'🔓'}</div>
+    <div><h4>${S.locked?'Site verrouillé':'Site ouvert'}</h4>
+    <p>${S.locked?'Les associations ne peuvent pas modifier les plannings':'Les associations peuvent saisir et modifier leurs créneaux'}</p></div>
+  </div>`;
+}
+async function setLock(v){
+  S.locked=v; applyLock();
+  if(sb) try{ await sb.from('settings').upsert({key:'locked',value:String(v)}); }catch(e){}
+  toast(v?'🔒 Site verrouillé':'🔓 Site déverrouillé', v?'warn':'ok');
+}
+
+// ===== MDP =====
+async function changePwd(role){
+  const np = document.getElementById(`np-${role==='asso'?'asso':'adm'}`).value.trim();
+  const cp = document.getElementById(`cp-${role==='asso'?'asso':'adm'}`).value.trim();
+  if(!np){ toast('Saisir un mot de passe','err'); return; }
+  if(np!==cp){ toast('Les mots de passe ne correspondent pas','err'); return; }
+  if(role==='asso') S.pwdAsso=np; else S.pwdAdmin=np;
+  if(sb) try{ await sb.from('settings').upsert({key:`pwd_${role}`,value:np}); }catch(e){}
+  document.getElementById(`np-${role==='asso'?'asso':'adm'}`).value='';
+  document.getElementById(`cp-${role==='asso'?'asso':'adm'}`).value='';
+  toast(`✅ Mot de passe ${role==='asso'?'association':'administrateur'} modifié`,'ok');
+}
+
+// ===== TABLEAU SAISIE =====
+// Structure thead :
+//   row 1 : [label] [Lundi colspan=3] [Mardi colspan=3] ...
+//   row 2 : [espace] [Début] [Fin]  x7
+// Structure tbody :
+//   [Créneau N] [select espace] [time debut] [time fin]  x7
+function buildTable(){
+  buildThead();
+  buildTbody();
+}
+
+function buildThead(){
+  const r1 = document.getElementById('thead-jour');
+  const r2 = document.getElementById('thead-sub');
+  // row 1 : jours
+  r1.innerHTML = '<th rowspan="2" style="min-width:90px;background:#0f2b46">Créneau</th>';
+  JOURS.forEach(j=>{
+    r1.innerHTML += `<th colspan="3" class="th-jour">${j}</th>`;
+  });
+  // row 2 : sous-entêtes
+  r2.innerHTML = '';
+  JOURS.forEach(()=>{
+    r2.innerHTML += `
+      <th class="th-sub sub-espace">Espace</th>
+      <th class="th-sub sub-debut">Début</th>
+      <th class="th-sub sub-fin">Fin</th>`;
+  });
+}
+
+function buildTbody(){
+  const tb = document.getElementById('ptbody');
+  tb.innerHTML='';
+  for(let i=1;i<=S.nbCren;i++) appendRow(i);
+}
+
+function appendRow(n){
+  const tb = document.getElementById('ptbody');
+  const tr = document.createElement('tr');
+  let html = `<td class="td-label">Créneau ${n}</td>`;
+  JOURS.forEach((_,ji)=>{
+    html += `
+      <td class="td-espace">${buildEspace(n,ji)}</td>
+      <td class="td-time">${buildTime(n,ji,'deb')}</td>
+      <td class="td-time">${buildTime(n,ji,'fin')}</td>`;
+  });
+  tr.innerHTML = html;
+  tb.appendChild(tr);
+}
+
+function buildEspace(c,j){
+  return `<select class="sel-espace" id="esp-${c}-${j}"><option value="">—</option></select>`;
+}
+
+function buildTime(c,j,t){
+  const id=`tp-${c}-${j}-${t}`;
+  return `<div class="tp-wrap">
+    <input class="tp-input" id="inp-${id}" readonly placeholder="--:--"
+           onclick="toggleTp('${id}',event)">
+    <div class="tp-drop" id="${id}">
+      ${TIMES.map(v=>`<div class="tp-opt" onclick="pickTime('${id}','${v}',event)">${v}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function addCreneau(){
+  S.nbCren++;
+  appendRow(S.nbCren);
+  majEspaces();
+}
+
+function majEspaces(){
+  const lieu = document.getElementById('asso-lieu').value;
+  const esp = ESPACES[lieu]||[];
+  document.querySelectorAll('.sel-espace').forEach(sel=>{
+    const cur=sel.value;
+    sel.innerHTML='<option value="">—</option>'+
+      esp.map(e=>`<option value="${e}" ${e===cur?'selected':''}>${e}</option>`).join('');
+  });
+}
+
+// Time picker
+function toggleTp(id,e){
+  e.stopPropagation();
+  document.querySelectorAll('.tp-drop.on').forEach(d=>{ if(d.id!==id) d.classList.remove('on'); });
+  document.getElementById(id)?.classList.toggle('on');
+}
+function pickTime(id,val,e){
+  e.stopPropagation();
+  document.getElementById('inp-'+id).value=val;
+  document.querySelectorAll(`#${id} .tp-opt`).forEach(o=>o.classList.toggle('sel',o.textContent===val));
+  document.getElementById(id).classList.remove('on');
+}
+document.addEventListener('click',()=>document.querySelectorAll('.tp-drop.on').forEach(d=>d.classList.remove('on')));
+
+function resetSaisie(){
+  document.getElementById('asso-name').value='';
+  document.getElementById('asso-lieu').value='';
+  S.nbCren=3; buildTbody(); majEspaces();
+}
+
+// ===== SAUVEGARDE =====
+async function savePlanning(){
+  if(S.locked){ toast('Site verrouillé — modification impossible','err'); return; }
+  const assoName = document.getElementById('asso-name').value.trim();
+  const lieu = document.getElementById('asso-lieu').value;
+  if(!assoName){ toast('Saisissez le nom de votre association','err'); return; }
+  if(!lieu){ toast('Sélectionnez un lieu de pratique','err'); return; }
+  const rows=[];
+  for(let c=1;c<=S.nbCren;c++){
+    JOURS.forEach((jour,ji)=>{
+      const espace = document.getElementById(`esp-${c}-${ji}`)?.value;
+      const debut  = document.getElementById(`inp-tp-${c}-${ji}-deb`)?.value;
+      const fin    = document.getElementById(`inp-tp-${c}-${ji}-fin`)?.value;
+      if(espace||debut||fin) rows.push({
+        association:assoName, lieu, lieu_label:LIEU_LABELS[lieu]||lieu,
+        creneau:c, jour, espace, heure_debut:debut, heure_fin:fin,
+        created_at:new Date().toISOString()
+      });
+    });
+  }
+  if(rows.length===0){ toast('Aucun créneau saisi','warn'); return; }
+  if(sb && SB_CONFIGURED){
+    try{
+      await sb.from('creneaux').delete().eq('association',assoName).eq('lieu',lieu);
+      const {error} = await sb.from('creneaux').insert(rows);
+      if(error) throw error;
+      toast(`✅ ${rows.length} créneau(x) enregistré(s)`,'ok');
+    }catch(e){ toast('Erreur : '+e.message,'err'); }
+  } else {
+    const all = JSON.parse(localStorage.getItem('cren')||'[]')
+      .filter(r=>!(r.association===assoName&&r.lieu===lieu));
+    localStorage.setItem('cren', JSON.stringify([...all,...rows]));
+    toast(`✅ ${rows.length} créneau(x) enregistrés (test local)`, 'ok');
+  }
+}
+
+// ===== CONSULTATION =====
+// Affiche la grille vide (jours x espaces du lieu)
+function renderEmptyConsult(){
+  const lieu = document.getElementById('cf-lieu').value;
+  document.getElementById('consult-count').textContent='';
+  if(!lieu){
+    document.getElementById('consult-body').innerHTML=`
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <p>Sélectionnez un équipement pour afficher le planning</p>
+      </div>`;
+    return;
+  }
+  renderPlanningGrid(lieu,[]);
+}
+
+async function loadConsult(){
+  const lieu = document.getElementById('cf-lieu').value;
+  const jour = document.getElementById('cf-jour').value;
+  if(!lieu){ renderEmptyConsult(); return; }
+  let data=[];
+  if(sb){
+    try{
+      let q=sb.from('creneaux').select('*').eq('lieu',lieu).order('heure_debut');
+      if(jour) q=q.eq('jour',jour);
+      const res=await q; data=res.data||[];
+    }catch(e){}
+  } else {
+    data=JSON.parse(localStorage.getItem('cren')||'[]').filter(r=>r.lieu===lieu);
+    if(jour) data=data.filter(r=>r.jour===jour);
+  }
+  document.getElementById('consult-count').textContent=`${data.length} créneau(x)`;
+  renderPlanningGrid(lieu,data);
+}
+
+// Grille structurée : jours en colonnes, espaces en lignes
+function renderPlanningGrid(lieu, data){
+  const espaces = ESPACES[lieu]||[];
+  const joursAff = document.getElementById('cf-jour')?.value
+    ? [document.getElementById('cf-jour').value] : JOURS;
+
+  let html=`<div class="empty-grid"><table>
+    <thead><tr><th style="min-width:140px;text-align:left">Espace</th>`;
+  joursAff.forEach(j=>{ html+=`<th>${j}</th>`; });
+  html+=`</tr></thead><tbody>`;
+
+  espaces.forEach(esp=>{
+    html+=`<tr><td class="jour-label" style="text-align:left;font-size:12px">${esp}</td>`;
+    joursAff.forEach(j=>{
+      const crens = data.filter(r=>r.espace===esp && r.jour===j);
+      if(crens.length===0){
+        html+=`<td style="color:#ccc;font-size:11px">—</td>`;
+      } else {
+        html+=`<td>`;
+        crens.forEach(r=>{
+          const h=r.heure_debut&&r.heure_fin?`${r.heure_debut}–${r.heure_fin}`:r.heure_debut||'';
+          html+=`<div style="margin:2px 0">
+            <span class="tag tag-asso" style="font-size:10px">${r.association||'?'}</span><br>
+            <span class="tag tag-hr" style="font-size:10px">${h||'—'}</span>
+          </div>`;
+        });
+        html+=`</td>`;
+      }
+    });
+    html+=`</tr>`;
+  });
+
+  if(espaces.length===0){
+    joursAff.forEach(()=>{});
+    html+=`<tr><td colspan="${joursAff.length+1}" style="text-align:center;padding:24px;color:var(--gris2)">Aucun espace défini pour cet équipement</td></tr>`;
+  }
+
+  html+=`</tbody></table></div>`;
+  document.getElementById('consult-body').innerHTML=html;
+}
+
+// ===== ADMIN DASHBOARD =====
+async function loadDash(){
+  let data=[];
+  if(sb){
+    try{
+      const res=await sb.from('creneaux').select('*').order('created_at',{ascending:false}).limit(50);
+      data=res.data||[];
+    }catch(e){}
+  } else { data=JSON.parse(localStorage.getItem('cren')||'[]'); }
+
+  const assos=[...new Set(data.map(r=>r.association))];
+  document.getElementById('s-cren').textContent=data.length;
+  document.getElementById('s-asso').textContent=assos.length;
+
+  const recent=data.slice(0,12);
+  if(recent.length===0){
+    document.getElementById('adm-recent').innerHTML=
+      `<div class="empty-state"><div class="icon">📭</div><p>Aucune donnée</p></div>`;
+    return;
+  }
+  let html=`<table class="vtable"><thead><tr>
+    <th>Association</th><th>Équipement</th><th>Jour</th><th>Espace</th><th>Horaire</th>
+  </tr></thead><tbody>`;
+  recent.forEach(r=>{
+    html+=`<tr>
+      <td><span class="tag tag-asso">${r.association||'—'}</span></td>
+      <td>${r.lieu_label||r.lieu||'—'}</td>
+      <td>${r.jour||'—'}</td>
+      <td>${r.espace||'—'}</td>
+      <td><span class="tag tag-hr">${r.heure_debut||'—'} → ${r.heure_fin||'—'}</span></td>
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  document.getElementById('adm-recent').innerHTML=html;
+}
+
+// ===== ADMIN PLANNINGS =====
+async function admLoadPlan(){
+  const lieu=document.getElementById('adm-lieu').value;
+  if(!lieu){ renderAdmEmptyGrid(''); return; }
+  let data=[];
+  if(sb){
+    try{
+      const res=await sb.from('creneaux').select('*').eq('lieu',lieu).order('jour').order('heure_debut');
+      data=res.data||[];
+    }catch(e){}
+  } else {
+    data=JSON.parse(localStorage.getItem('cren')||'[]').filter(r=>r.lieu===lieu);
+  }
+  renderAdmGrid(lieu,data);
+}
+
+function renderAdmEmptyGrid(lieu){
+  document.getElementById('adm-plan-body').innerHTML=
+    `<div class="empty-state"><div class="icon">📋</div><p>Choisissez un équipement</p></div>`;
+}
+
+function renderAdmGrid(lieu,data){
+  const espaces=ESPACES[lieu]||[];
+  let html=`<div class="pv-card">
+    <div class="pv-header"><h3>${LIEU_LABELS[lieu]||lieu}</h3><small>${data.length} créneau(x)</small></div>
+    <div class="empty-grid"><table>
+    <thead><tr>
+      <th style="min-width:40px"><input type="checkbox" onclick="checkAll(this)"></th>
+      <th style="text-align:left;min-width:130px">Espace</th>`;
+  JOURS.forEach(j=>html+=`<th>${j}</th>`);
+  html+=`</tr></thead><tbody>`;
+  espaces.forEach(esp=>{
+    html+=`<tr><td></td><td class="jour-label" style="text-align:left;font-size:12px">${esp}</td>`;
+    JOURS.forEach(j=>{
+      const crens=data.filter(r=>r.espace===esp&&r.jour===j);
+      if(crens.length===0){ html+=`<td style="color:#ccc;font-size:11px">—</td>`; }
+      else{
+        html+=`<td>`;
+        crens.forEach(r=>{
+          const h=r.heure_debut&&r.heure_fin?`${r.heure_debut}–${r.heure_fin}`:r.heure_debut||'';
+          html+=`<div style="margin:2px 0">
+            <input type="checkbox" class="row-chk" data-id="${r.id||''}">
+            <span class="tag tag-asso" style="font-size:10px">${r.association||'?'}</span>
+            <span class="tag tag-hr"   style="font-size:10px">${h}</span>
+          </div>`;
+        });
+        html+=`</td>`;
+      }
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table></div></div>`;
+  document.getElementById('adm-plan-body').innerHTML=html;
+}
+
+function checkAll(m){ document.querySelectorAll('.row-chk').forEach(c=>c.checked=m.checked); }
+
+async function deleteSelected(){
+  const ids=[...document.querySelectorAll('.row-chk:checked')].map(c=>c.dataset.id).filter(Boolean);
+  if(!ids.length){ toast('Aucune ligne sélectionnée','warn'); return; }
+  if(!confirm(`Supprimer ${ids.length} créneau(x) ?`)) return;
+  if(sb){
+    try{
+      await sb.from('creneaux').delete().in('id',ids);
+      toast(`✅ ${ids.length} supprimé(s)`,'ok');
+      admLoadPlan(); loadDash();
+    }catch(e){ toast('Erreur','err'); }
+  } else { toast('Mode démo — suppression non persistante','warn'); }
+}
+
+// ===== TOAST =====
+let _tt;
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast on '+type;
+  clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('on'),3500);
+}
+
+// ===== TEMPS RÉEL =====
+// Rafraîchit uniquement les vues de consultation (jamais le formulaire de saisie,
+// pour ne pas interrompre une saisie en cours).
+function isVisible(id){
+  const el=document.getElementById(id);
+  return el && el.offsetParent!==null;
+}
+let _rtT;
+function onRealtimeCreneaux(){
+  clearTimeout(_rtT);
+  _rtT=setTimeout(()=>{
+    // Consultation association
+    if(isVisible('consult-body') && document.getElementById('cf-lieu')?.value) loadConsult();
+    // Dashboard admin
+    if(isVisible('adm-recent')) loadDash();
+    // Plannings admin : ne pas écraser une sélection de cases en cours
+    if(isVisible('adm-plan-body') && document.getElementById('adm-lieu')?.value){
+      const checked=document.querySelectorAll('.row-chk:checked').length;
+      if(checked===0) admLoadPlan();
+      else toast('🔄 Données modifiées par un autre utilisateur — rechargez le planning','warn');
+    }
+  },400);
+}
+function onRealtimeSettings(payload){
+  const r=payload.new||{};
+  if(r.key==='locked'){ S.locked=r.value==='true'; applyLock(); }
+  if(r.key==='pwd_asso')  S.pwdAsso=r.value;
+  if(r.key==='pwd_admin') S.pwdAdmin=r.value;
+}
+function initRealtime(){
+  if(!sb) return;
+  try{
+    sb.channel('rt-creneaux')
+      .on('postgres_changes',{event:'*',schema:'public',table:'creneaux'},onRealtimeCreneaux)
+      .on('postgres_changes',{event:'*',schema:'public',table:'settings'},onRealtimeSettings)
+      .subscribe();
+  }catch(e){}
+}
+
+// ===== INIT =====
+window.addEventListener('load',async()=>{
+  if(sb){
+    try{
+      const {data}=await sb.from('settings').select('*');
+      if(data) data.forEach(r=>{
+        if(r.key==='locked')    S.locked   = r.value==='true';
+        if(r.key==='pwd_asso')  S.pwdAsso  = r.value;
+        if(r.key==='pwd_admin') S.pwdAdmin = r.value;
+      });
+    }catch(e){}
+    initRealtime();
+  }
+  buildTable();
+});
+</script>
+</body>
+</html>
