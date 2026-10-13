@@ -647,7 +647,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Votre association</label>
-            <input type="text" id="asso-name" placeholder="Ex : Club de Handball de Corbas">
+            <div id="asso-name-wrap"><input type="text" id="asso-name" placeholder="Ex : Club de Handball de Corbas"></div>
           </div>
           <div class="form-group">
             <label>Lieu de pratique</label>
@@ -736,6 +736,7 @@
         <div class="nav-item"    id="nav-plannings" onclick="adminNav('plannings')">📅 Plannings</div>
         <div class="nav-item"    id="nav-taux"      onclick="adminNav('taux')">📈 Taux d'occupation</div>
         <div class="nav-item"    id="nav-bilan"     onclick="adminNav('bilan')">📒 Bilan des heures</div>
+        <div class="nav-item"    id="nav-assos"     onclick="adminNav('assos')">🏃 Associations</div>
         <div class="nav-item"    id="nav-lieux"     onclick="adminNav('lieux')">🏟️ Équipements &amp; salles</div>
         <div class="nav-item"    id="nav-settings"  onclick="adminNav('settings')">⚙️ Paramètres</div>
       </div>
@@ -815,6 +816,20 @@
           </div>
           <div id="bilan-params"></div>
           <div id="bilan-print"><div class="empty-state"><div class="icon">📒</div><p>Chargement…</p></div></div>
+        </div>
+
+        <!-- Associations -->
+        <div id="adm-assos" class="page">
+          <div class="section-title">🏃 Associations</div>
+          <p style="font-size:13px;color:var(--gris2);margin:-12px 0 18px">Cette liste alimente le menu déroulant « Votre association » du formulaire de saisie. Utilisez <b>exactement les mêmes noms</b> que dans le planning des manifestations : les heures de manifestation seront alors rattachées automatiquement dans le bilan, sans doublon.</p>
+          <div class="set-section">
+            <h4>＋ Ajouter une association</h4>
+            <div class="inline-f">
+              <div class="form-group"><label>Nom</label><input type="text" id="as-nom" placeholder="Ex : Handball" onkeydown="if(event.key==='Enter')asAdd()"></div>
+              <button class="btn btn-primary" style="flex:none;min-width:110px;padding:10px 14px" onclick="asAdd()">Ajouter</button>
+            </div>
+          </div>
+          <div id="assos-body"><div class="empty-state"><p>Chargement…</p></div></div>
         </div>
 
         <!-- Équipements & salles -->
@@ -987,6 +1002,7 @@ function adminNav(sec){
   if(sec==='taux')  loadTaux();
   if(sec==='bilan') loadBilan();
   if(sec==='lieux') renderLieux();
+  if(sec==='assos') renderAssos();
 }
 
 // ===== VERROU =====
@@ -1132,6 +1148,7 @@ document.addEventListener('click',()=>document.querySelectorAll('.tp-drop.on').f
 
 function resetSaisie(){
   document.getElementById('asso-name').value='';
+  renderAssoSelect();
   document.getElementById('asso-lieu').value='';
   S.nbCren=3; buildTbody(); majEspaces();
 }
@@ -1374,10 +1391,11 @@ function defBilan(){
 }
 function defLieux(){ return Object.keys(ESPACES).map(id=>({id, nom:LIEU_DEFAULT_NOMS[id]||LIEU_LABELS[id]||id, espaces:[...ESPACES[id]]})); }
 const LIEU_DEFAULT_NOMS={alice_milliat:'Espace sportif Alice Milliat',taillis:'Complexe des Taillis',roses:'Gymnase des Roses',falcot:'Gymnase Jean Falcot',jaures:'Gymnase Jean Jaurès'};
-const CFG = { couleurs:{}, taux:defTaux(), bilan:defBilan(), lieux:defLieux() };
+const CFG = { couleurs:{}, taux:defTaux(), bilan:defBilan(), lieux:defLieux(), assos:[] };
 
 function normalizeCfg(k,v){
   if(k==='couleurs') return (v && typeof v==='object') ? v : {};
+  if(k==='assos') return Array.isArray(v) ? [...new Set(v.map(x=>String(x).trim()).filter(Boolean))] : [];
   if(k==='lieux') return (Array.isArray(v) && v.length && v.every(l=>l && l.id && Array.isArray(l.espaces))) ? v : defLieux();
   if(k==='taux'){ const d=defTaux(); return {...d, ...v, profils:Array.isArray(v.profils)&&v.profils.length?v.profils:d.profils, unites:Array.isArray(v.unites)?v.unites:d.unites}; }
   if(k==='bilan'){ const d=defBilan(); return {...d, ...v, rows:v.rows||{}, extra:Array.isArray(v.extra)?v.extra:[]}; }
@@ -1392,7 +1410,7 @@ function applyCfgRow(key,value){
   CFG[k]=n; return true;
 }
 function loadCfgLocal(){
-  ['couleurs','taux','bilan','lieux'].forEach(k=>{ try{ applyCfgRow('cfg_'+k, localStorage.getItem('cfg_'+k)); }catch(e){} });
+  ['couleurs','taux','bilan','lieux','assos'].forEach(k=>{ try{ applyCfgRow('cfg_'+k, localStorage.getItem('cfg_'+k)); }catch(e){} });
 }
 async function saveCfg(k){
   const val=JSON.stringify(CFG[k]);
@@ -1920,6 +1938,146 @@ function exportBilanCSV(){
   toast('⬇️ Bilan téléchargé','ok');
 }
 
+
+
+// =====================================================================
+// ===== ASSOCIATIONS (liste officielle, gérée par l'administrateur) =====
+// =====================================================================
+const sortFr=a=>[...a].sort((x,y)=>x.localeCompare(y,'fr',{sensitivity:'base'}));
+
+// Formulaire de saisie : menu déroulant si une liste existe, sinon champ libre (comme avant)
+function renderAssoSelect(){
+  const w=document.getElementById('asso-name-wrap'); if(!w) return;
+  const cur=document.getElementById('asso-name')?.value||'';
+  const list=sortFr(CFG.assos||[]);
+  if(!list.length){
+    if(document.querySelector('#asso-name-wrap input')) return;
+    w.innerHTML='<input type="text" id="asso-name" placeholder="Ex : Club de Handball de Corbas">';
+    return;
+  }
+  w.innerHTML=`<select id="asso-name"><option value="">— Choisir votre association —</option>${list.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select>`;
+  const sel=document.getElementById('asso-name');
+  const hit=list.find(a=>normName(a)===normName(cur));
+  if(hit) sel.value=hit;
+}
+
+async function renderAssos(){
+  const box=document.getElementById('assos-body'); if(!box) return;
+  let crens=[]; try{ crens=await fetchCreneaux(); }catch(e){}
+  const payload=await fetchManif();
+  const manif=sortFr([...new Set((payload?.acts_list||[]).map(x=>String(x).trim()).filter(Boolean))]);
+  const list=sortFr(CFG.assos||[]);
+  const inList=n=>list.some(a=>normName(a)===normName(n));
+  const inManif=n=>manif.some(a=>normName(a)===normName(n));
+  // créneaux par nom (tel qu'écrit)
+  const byName={}; crens.forEach(r=>{ const n=String(r.association||'').trim(); if(n) byName[n]=(byName[n]||0)+1; });
+  const cntFor=a=>Object.entries(byName).filter(([n])=>normName(n)===normName(a)).reduce((s,[,c])=>s+c,0);
+  const orphans=Object.keys(byName).filter(n=>!list.includes(n));
+  const optsFor=g=>`<option value="">— choisir —</option>`+list.map(a=>`<option value="${esc(a)}"${a===g?' selected':''}>${esc(a)}</option>`).join('');
+  let h='';
+
+  // 1. Liste officielle
+  h+=`<div class="set-section"><h4>📋 Liste des associations (${list.length})</h4>`;
+  if(!list.length) h+=`<p style="font-size:13px;color:var(--gris2);margin-bottom:10px">La liste est vide : le formulaire de saisie garde pour l'instant un champ libre. Ajoutez des associations ci-dessus ou importez-les ci-dessous.</p>`;
+  else h+=`<table class="rc" style="min-width:0"><thead><tr><th>Nom (modifiable)</th><th>Créneaux</th><th>Planning des manifestations</th><th></th></tr></thead><tbody>${list.map(a=>`
+      <tr><td><input class="bi txt" style="width:260px" value="${esc(a)}" onchange="asRename(${esc(JSON.stringify(a))},this.value)"></td>
+      <td>${cntFor(a)||'<span style="color:#cbd5e1">0</span>'}</td>
+      <td>${payload?(inManif(a)?'<span style="color:var(--vert);font-weight:700">✅ même nom</span>':'<span style="color:#b45309;font-weight:700">⚠️ absent</span>'):'<span style="color:var(--gris2)">—</span>'}</td>
+      <td><button class="lnk red" onclick="asDel(${esc(JSON.stringify(a))})">Supprimer</button></td></tr>`).join('')}</tbody></table>
+      <p style="font-size:11.5px;color:var(--gris2);margin-top:8px">Renommer une association met aussi à jour tous ses créneaux déjà enregistrés et ses réglages du bilan.</p>`;
+  h+=`</div>`;
+
+  // 2. Import depuis le planning des manifestations
+  h+=`<div class="set-section"><h4>🔗 Associations du planning des manifestations</h4>`;
+  if(!payload) h+=`<p style="font-size:13px;color:var(--rouge)">Planning des manifestations inaccessible${MANIF.err?' ('+esc(MANIF.err)+')':''}.</p>`;
+  else {
+    const missing=manif.filter(a=>!inList(a));
+    h+=`<p style="font-size:13px;color:var(--gris2);margin-bottom:10px">${manif.length} association(s) dans le planning des manifestations${missing.length?`, dont <b>${missing.length}</b> absente(s) de votre liste`:' — toutes sont dans votre liste ✅'}.</p>`;
+    if(missing.length) h+=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${missing.map(a=>`<span class="chip" title="Ajouter à la liste" onclick="asAddName(${esc(JSON.stringify(a))})">＋ ${esc(a)}</span>`).join('')}</div>
+      <button class="btn btn-secondary" style="flex:none;padding:9px 14px;font-size:12px" onclick="asImport()">Tout importer (${missing.length})</button>`;
+  }
+  h+=`</div>`;
+
+  // 3. Noms saisis hors liste (doublons à fusionner)
+  h+=`<div class="set-section"><h4>🧹 Noms saisis dans les créneaux mais absents de la liste</h4>`;
+  if(!orphans.length) h+=`<p style="font-size:13px;color:var(--vert)">✅ Tous les créneaux utilisent un nom de la liste.</p>`;
+  else h+=`<p style="font-size:12.5px;color:var(--gris2);margin-bottom:10px">Ces noms ont été tapés à la main avant la mise en place de la liste. Fusionnez-les vers le bon nom (les créneaux sont renommés), ou ajoutez-les à la liste.</p>
+    <table class="rc" style="min-width:0"><thead><tr><th>Nom saisi</th><th>Créneaux</th><th>Fusionner vers</th><th></th></tr></thead><tbody>${orphans.sort((a,b)=>a.localeCompare(b,'fr')).map(n=>{
+      const guess=list.find(a=>normName(a)===normName(n));
+      return `<tr><td><b>${esc(n)}</b></td><td>${byName[n]}</td>
+        <td>${list.length?`<select class="mini">${optsFor(guess)}</select>
+          <button class="btn btn-primary" style="flex:none;padding:6px 12px;font-size:12px" onclick="asMerge(${esc(JSON.stringify(n))},this.previousElementSibling.value)">Fusionner</button>`:'—'}</td>
+        <td><button class="lnk" onclick="asAddName(${esc(JSON.stringify(n))})">＋ Ajouter à la liste</button></td></tr>`; }).join('')}</tbody></table>`;
+  h+=`</div>`;
+  box.innerHTML=h;
+}
+
+async function asSave(){ renderAssoSelect(); return saveCfg('assos'); }
+function asAddName(n){
+  n=String(n||'').trim(); if(!n) return;
+  if((CFG.assos||[]).some(a=>normName(a)===normName(n))){ toast('Cette association existe déjà','warn'); return; }
+  CFG.assos=[...(CFG.assos||[]),n];
+  asSave().then(renderAssos); toast(`✅ « ${n} » ajoutée`,'ok');
+}
+function asAdd(){ const i=document.getElementById('as-nom'); asAddName(i.value); i.value=''; }
+async function asImport(){
+  const p=await fetchManif(); const names=(p?.acts_list||[]).map(x=>String(x).trim()).filter(Boolean);
+  const cur=CFG.assos||[]; const add=names.filter(n=>!cur.some(a=>normName(a)===normName(n)));
+  CFG.assos=[...cur,...new Set(add)];
+  await asSave(); renderAssos(); toast(`✅ ${add.length} association(s) importée(s)`,'ok');
+}
+
+// Renomme dans les créneaux + déplace les réglages du bilan et la couleur
+async function renameCrensAsso(oldName,newName){
+  if(sb){
+    let crens=[]; try{ crens=await fetchCreneaux(); }catch(e){ toast('Erreur : '+e.message,'err'); return false; }
+    const ids=crens.filter(r=>String(r.association||'').trim()===oldName).map(r=>r.id);
+    for(let i=0;i<ids.length;i+=200){
+      const {error}=await sb.from('creneaux').update({association:newName}).in('id',ids.slice(i,i+200));
+      if(error){ toast('Erreur : '+error.message,'err'); return false; }
+    }
+  } else {
+    const all=JSON.parse(localStorage.getItem('cren')||'[]').map(r=>String(r.association||'').trim()===oldName?{...r,association:newName}:r);
+    localStorage.setItem('cren',JSON.stringify(all));
+  }
+  const o=normName(oldName), n=normName(newName);
+  if(o!==n){
+    const R=CFG.bilan.rows; let ch=false;
+    Object.keys(R).forEach(k=>{ const [a,l]=k.split('|'); if(a===o){ const nk=n+'|'+l; if(!R[nk]) R[nk]=R[k]; delete R[k]; ch=true; } });
+    if(ch) saveCfg('bilan');
+    if(CFG.couleurs[o] && !CFG.couleurs[n]){ CFG.couleurs[n]=CFG.couleurs[o]; delete CFG.couleurs[o]; saveCfg('couleurs'); }
+  }
+  return true;
+}
+async function asRename(oldName,newName){
+  newName=String(newName||'').trim();
+  if(!newName || newName===oldName){ renderAssos(); return; }
+  const clash=(CFG.assos||[]).find(a=>a!==oldName && normName(a)===normName(newName));
+  if(clash && !confirm(`« ${clash} » existe déjà : fusionner « ${oldName} » dedans ?`)){ renderAssos(); return; }
+  // tous les créneaux dont le nom correspond (même écrit différemment)
+  let crens=[]; try{ crens=await fetchCreneaux(); }catch(e){}
+  const variants=[...new Set(crens.map(r=>String(r.association||'').trim()).filter(x=>normName(x)===normName(oldName)))];
+  const target=clash||newName;
+  for(const v of variants){ if(v!==target && !await renameCrensAsso(v,target)) return; }
+  CFG.assos=(CFG.assos||[]).filter(a=>a!==oldName); if(!clash) CFG.assos.push(newName);
+  await asSave(); renderAssos(); toast('✅ Association renommée (créneaux mis à jour)','ok');
+}
+async function asMerge(from,to){
+  if(!to){ toast('Choisissez le nom cible','warn'); return; }
+  if(!confirm(`Renommer tous les créneaux « ${from} » en « ${to} » ?`)) return;
+  if(await renameCrensAsso(from,to)){ renderAssos(); toast('✅ Fusion effectuée','ok'); }
+}
+async function asDel(name){
+  let crens=[]; try{ crens=await fetchCreneaux(); }catch(e){}
+  const mine=crens.filter(r=>normName(r.association)===normName(name));
+  if(!confirm(`Retirer « ${name} » de la liste ?`)) return;
+  if(mine.length && confirm(`« ${name} » a ${mine.length} créneau(x) enregistré(s).\n\nOK = supprimer aussi ces créneaux\nAnnuler = garder les créneaux`)){
+    if(sb){ const {error}=await sb.from('creneaux').delete().in('id',mine.map(r=>r.id)); if(error){ toast('Erreur : '+error.message,'err'); return; } }
+    else { const all=JSON.parse(localStorage.getItem('cren')||'[]').filter(r=>normName(r.association)!==normName(name)); localStorage.setItem('cren',JSON.stringify(all)); }
+  }
+  CFG.assos=(CFG.assos||[]).filter(a=>a!==name);
+  await asSave(); renderAssos(); toast('🗑️ Association retirée','ok');
+}
 
 // =====================================================================
 // ===== ÉQUIPEMENTS & SALLES (configurables par l'administrateur) =====
@@ -2509,6 +2667,7 @@ function editingIn(id){ const ae=document.activeElement; const box=document.getE
 function refreshAfterCfg(k){
   if(k==='bilan' && isVisible('bilan-print') && !editingIn('adm-bilan')){ renderBilanParams(); renderBilan(); }
   if((k==='taux'||k==='bilan') && isVisible('taux-print') && !editingIn('adm-taux')){ if(k==='taux') renderTauxCfg(); renderTaux(); }
+  if(k==='assos'){ renderAssoSelect(); if(isVisible('assos-body') && !editingIn('adm-assos')) renderAssos(); }
   if(k==='lieux'){ applyLieux(); if(isVisible('lieux-list') && !editingIn('adm-lieux')) renderLieux(); }
   if(k==='couleurs'){
     Object.keys(VG).forEach(cid=>{ const st=VG[cid]; if(st.data && isVisible(cid)) renderVenue(cid,st.lieu,st.data,st.opts); });
@@ -2577,11 +2736,11 @@ window.addEventListener('load',async()=>{
         applyCfgRow(r.key, r.value);
       });
     }catch(e){}
-    applyLieux();
+    applyLieux(); renderAssoSelect();
     initRealtime();
   } else {
     loadCfgLocal();
-    applyLieux();
+    applyLieux(); renderAssoSelect();
   }
   buildTable();
 });
