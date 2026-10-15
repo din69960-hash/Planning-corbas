@@ -96,6 +96,15 @@
   .modal-box input.err { border-color:var(--rouge); }
   .err-msg { color:var(--rouge); font-size:13px; margin-top:6px; display:none; }
   .err-msg.on { display:block; }
+  .aide-lieu { display:none; position:relative; margin-top:10px; background:#fff7e6; border:2px solid var(--or2);
+    color:#7a4a00; font-weight:700; font-size:13.5px; padding:9px 12px; border-radius:8px; }
+  .aide-lieu::before { content:''; position:absolute; top:-10px; left:28px; border:9px solid transparent;
+    border-top:0; border-bottom-color:var(--or2); }
+  .aide-lieu.on { display:block; animation:pop .2s ease; }
+  select.lieu-alerte { border-color:var(--or2) !important; box-shadow:0 0 0 4px rgba(240,180,41,.35); animation:pulseLieu 1s ease 2; }
+  @keyframes pulseLieu { 50%{ box-shadow:0 0 0 8px rgba(240,180,41,.15); } }
+  .sel-espace.manque { border:2px solid var(--rouge) !important; background:#fff5f5; }
+  .info-liste { margin:10px 0 4px 18px; } .info-liste li { margin:2px 0; }
   .modal-btns { display:flex; gap:10px; margin-top:20px; }
   .modal-box form { margin:0; }
   .modal-box .mf { text-align:left; margin-bottom:12px; }
@@ -644,6 +653,15 @@ input[data-mdp].mdp-vu{-webkit-text-security:none;}
 </div>
 
 <!-- MODAL ASSO : MODIFIER MON MOT DE PASSE -->
+<div class="modal-ov" id="modal-info">
+  <div class="modal-box">
+    <h3 id="info-titre">Information</h3>
+    <div id="info-corps" style="font-size:14px;line-height:1.55;color:#334155"></div>
+    <div class="modal-btns">
+      <button type="button" class="btn btn-primary" onclick="closeM('info')">J'ai compris</button>
+    </div>
+  </div>
+</div>
 <div class="modal-ov" id="modal-chg">
   <div class="modal-box">
     <h3>Modifier mon mot de passe</h3>
@@ -736,15 +754,16 @@ input[data-mdp].mdp-vu{-webkit-text-security:none;}
             <div id="asso-name-wrap"><select id="asso-name"><option value="">Chargement des associations…</option></select></div>
           </div>
           <div class="form-group">
-            <label>Lieu de pratique</label>
-            <select id="asso-lieu" class="lieu-sel" data-first="— Choisir un lieu —" onchange="majEspaces()">
-              <option value="">— Choisir un lieu —</option>
+            <label>Choisir votre équipement sportif</label>
+            <select id="asso-lieu" class="lieu-sel" data-first="— Choisir un équipement —" onchange="majEspaces();masquerAideLieu()">
+              <option value="">— Choisir un équipement —</option>
               <option value="alice_milliat">Espace sportif Alice Milliat</option>
               <option value="taillis">Complexe des Taillis</option>
               <option value="roses">Gymnase des Roses</option>
               <option value="falcot">Gymnase Jean Falcot</option>
               <option value="jaures">Gymnase Jean Jaurès</option>
             </select>
+            <div class="aide-lieu" id="aide-lieu" role="alert">⬆️ Veuillez d'abord choisir l'équipement ci-dessus</div>
           </div>
         </div>
 
@@ -1366,6 +1385,34 @@ function addCreneau(){
   majEspaces();
 }
 
+// Tant que l'équipement n'est pas choisi, on bloque la saisie et on montre où le choisir
+function aideLieu(e){
+  if(document.getElementById('asso-lieu').value) return;
+  if(!e.target.closest('.sel-espace, .tp-input, .tp-wrap')) return;
+  e.preventDefault(); e.stopPropagation();
+  if(e.target.blur) e.target.blur();
+  document.querySelectorAll('.tp-drop.on').forEach(d=>d.classList.remove('on'));
+  const sel=document.getElementById('asso-lieu');
+  document.getElementById('aide-lieu').classList.add('on');
+  sel.classList.remove('lieu-alerte'); void sel.offsetWidth; sel.classList.add('lieu-alerte');
+  sel.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>sel.focus(),300);
+}
+function masquerAideLieu(){
+  document.getElementById('aide-lieu')?.classList.remove('on');
+  document.getElementById('asso-lieu')?.classList.remove('lieu-alerte');
+}
+(function(){
+  const tb=document.getElementById('ptbody'); if(!tb) return;
+  ['mousedown','click','focusin','keydown'].forEach(ev=>tb.addEventListener(ev,aideLieu,true));
+  tb.addEventListener('change',e=>{ if(e.target.classList.contains('sel-espace') && e.target.value) e.target.classList.remove('manque'); });
+})();
+function info(titre,html){
+  document.getElementById('info-titre').textContent=titre;
+  document.getElementById('info-corps').innerHTML=html;
+  document.getElementById('modal-info').classList.add('on');
+}
+
 function majEspaces(){
   const lieu = document.getElementById('asso-lieu').value;
   const esp = ESPACES[lieu]||[];
@@ -1405,7 +1452,26 @@ async function savePlanning(){
   const lieu = document.getElementById('asso-lieu').value;
   if(!assoName){ toast('Choisissez votre association dans la liste','err'); return; }
   if(S.role!=='asso' && !assoOptions().includes(assoName)){ toast('Association inconnue : choisissez-la dans la liste','err'); return; }
-  if(!lieu){ toast('Sélectionnez un lieu de pratique','err'); return; }
+  if(!lieu){ aideLieu({target:document.querySelector('#ptbody .sel-espace')||document.body,preventDefault(){},stopPropagation(){}}); toast('Choisissez votre équipement sportif','err'); return; }
+  // Chaque créneau avec un horaire doit avoir un espace de pratique
+  const manquants=[];
+  document.querySelectorAll('#ptbody .sel-espace').forEach(el=>el.classList.remove('manque'));
+  for(let c=1;c<=S.nbCren;c++){
+    JOURS.forEach((jour,ji)=>{
+      const el=document.getElementById(`esp-${c}-${ji}`);
+      const deb=document.getElementById(`inp-tp-${c}-${ji}-deb`)?.value;
+      const fin=document.getElementById(`inp-tp-${c}-${ji}-fin`)?.value;
+      if((deb||fin) && el && !el.value){ manquants.push(`Créneau ${c} – ${jour}`); el.classList.add('manque'); }
+    });
+  }
+  if(manquants.length){
+    const ex=(ESPACES[lieu]||[]).slice(0,3).join(', ');
+    info('Espace de pratique manquant',
+      `Veuillez saisir votre espace de pratique${ex?` (ex : ${esc(ex)}…)`:''} pour le ou les créneaux suivants :`+
+      `<ul class="info-liste">${manquants.map(m=>`<li><b>${esc(m)}</b></li>`).join('')}</ul>`+
+      `<span style="font-size:12.5px;color:var(--gris2)">Les cases concernées sont entourées en rouge.</span>`);
+    return;
+  }
   const rows=[];
   for(let c=1;c<=S.nbCren;c++){
     JOURS.forEach((jour,ji)=>{
