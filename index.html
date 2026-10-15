@@ -615,18 +615,21 @@
   <div class="modal-box">
     <h3>Accès Association</h3>
     <p>Choisissez votre association.</p>
-    <form onsubmit="event.preventDefault();valAsso();" autocomplete="on">
+    <form onsubmit="event.preventDefault();valAsso();" autocomplete="off">
       <div class="mf">
         <label>Votre association</label>
         <select id="la-nom" onchange="assoChoisie()"><option value="">Chargement…</option></select>
-        <input type="text" id="la-user" name="username" autocomplete="username" style="display:none" tabindex="-1">
       </div>
       <div id="la-zone" style="display:none">
         <div class="mf">
           <label>Mot de passe</label>
-          <input type="password" id="la-mdp" name="password" autocomplete="current-password" placeholder="Votre mot de passe">
+          <input type="password" id="la-mdp" autocomplete="off" placeholder="Votre mot de passe" onfocus="verifierMdpExiste()">
         </div>
-        <label class="voir-mdp"><input type="checkbox" onchange="toggleVoir(this,['la-mdp'])"> Voir les caractères</label>
+        <div id="la-new" style="display:none">
+          <p style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:9px 12px;font-size:12.5px;margin:0 0 12px;text-align:left">Aucun mot de passe n'existe pour votre association, merci de le créer (6 caractères minimum).</p>
+          <div class="mf"><label>Confirmer le mot de passe</label><input type="password" id="la-mdp2" autocomplete="off" placeholder="Confirmer le mot de passe"></div>
+        </div>
+        <label class="voir-mdp"><input type="checkbox" onchange="toggleVoir(this,['la-mdp','la-mdp2'])"> Voir les caractères</label>
         <label class="voir-mdp"><input type="checkbox" id="la-remember"> Se souvenir de mon association</label>
       </div>
       <div class="err-msg" id="la-err"></div>
@@ -638,35 +641,15 @@
   </div>
 </div>
 
-<!-- MODAL PREMIÈRE CONNEXION : CRÉER SON MOT DE PASSE -->
-<div class="modal-ov" id="modal-premier">
-  <div class="modal-box">
-    <h3>Créez votre mot de passe</h3>
-    <p>Première connexion : choisissez le mot de passe de votre association. Il vous sera demandé à chaque connexion.</p>
-    <div class="asso-nom-box" id="pm-nom"></div>
-    <form onsubmit="event.preventDefault();creerPremierMdp();" autocomplete="on">
-      <input type="text" id="pm-user" name="username" autocomplete="username" style="display:none" tabindex="-1">
-      <div class="mf"><label>Créer votre mot de passe</label><input type="password" id="pm-mdp" autocomplete="new-password" placeholder="Minimum 6 caractères"></div>
-      <div class="mf"><label>Confirmer le mot de passe</label><input type="password" id="pm-mdp2" autocomplete="new-password" placeholder="Confirmer"></div>
-      <label class="voir-mdp"><input type="checkbox" onchange="toggleVoir(this,['pm-mdp','pm-mdp2'])"> Voir les caractères</label>
-      <div class="err-msg" id="pm-err"></div>
-      <div class="modal-btns">
-        <button type="button" class="btn btn-secondary" onclick="closeM('premier')">Annuler</button>
-        <button type="submit" class="btn btn-primary">Enregistrer</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <!-- MODAL ASSO : MODIFIER MON MOT DE PASSE -->
 <div class="modal-ov" id="modal-chg">
   <div class="modal-box">
     <h3>Modifier mon mot de passe</h3>
     <p id="chg-sub"></p>
-    <form onsubmit="event.preventDefault();changerMonMdp();" autocomplete="on">
-      <div class="mf"><label>Ancien mot de passe</label><input type="password" id="chg-old" autocomplete="current-password" placeholder="Mot de passe actuel"></div>
-      <div class="mf"><label>Nouveau mot de passe</label><input type="password" id="chg-new" autocomplete="new-password" placeholder="Minimum 6 caractères"></div>
-      <div class="mf"><label>Confirmer le nouveau</label><input type="password" id="chg-new2" autocomplete="new-password" placeholder="Confirmer"></div>
+    <form onsubmit="event.preventDefault();changerMonMdp();" autocomplete="off">
+      <div class="mf"><label>Ancien mot de passe</label><input type="password" id="chg-old" autocomplete="off" placeholder="Mot de passe actuel"></div>
+      <div class="mf"><label>Nouveau mot de passe</label><input type="password" id="chg-new" autocomplete="off" placeholder="Minimum 6 caractères"></div>
+      <div class="mf"><label>Confirmer le nouveau</label><input type="password" id="chg-new2" autocomplete="off" placeholder="Confirmer"></div>
       <label class="voir-mdp"><input type="checkbox" onchange="toggleVoir(this,['chg-old','chg-new','chg-new2'])"> Voir les caractères</label>
       <div class="err-msg" id="chg-err"></div>
       <div class="modal-btns">
@@ -684,8 +667,8 @@
     <p>Le nouveau mot de passe remplace l'ancien. Communiquez-le à l'association.</p>
     <div class="asso-nom-box" id="rm-nom"></div>
     <form onsubmit="event.preventDefault();validerResetMdp();" autocomplete="off">
-      <div class="mf"><label>Nouveau mot de passe</label><input type="password" id="rm-mdp" autocomplete="new-password" placeholder="Minimum 6 caractères"></div>
-      <div class="mf"><label>Confirmer</label><input type="password" id="rm-mdp2" autocomplete="new-password" placeholder="Confirmer"></div>
+      <div class="mf"><label>Nouveau mot de passe</label><input type="password" id="rm-mdp" autocomplete="off" placeholder="Minimum 6 caractères"></div>
+      <div class="mf"><label>Confirmer</label><input type="password" id="rm-mdp2" autocomplete="off" placeholder="Confirmer"></div>
       <label class="voir-mdp"><input type="checkbox" onchange="toggleVoir(this,['rm-mdp','rm-mdp2'])"> Voir les caractères</label>
       <div class="err-msg" id="rm-err"></div>
       <div class="modal-btns">
@@ -1231,39 +1214,38 @@ function remplirListeAsso(){
     if(r && r.nom && list.includes(r.nom)){ sel.value=r.nom; document.getElementById('la-remember').checked=true; assoChoisie(); }
   }catch(e){}
 }
+let laMode='connexion'; // 'connexion' ou 'creation'
 async function assoChoisie(){
   const nom=document.getElementById('la-nom').value.trim();
   const zone=document.getElementById('la-zone'), go=document.getElementById('la-go');
   document.getElementById('la-err').classList.remove('on');
-  zone.style.display='none'; go.style.display='none';
-  if(!nom) return;
-  await refreshComptes();
-  const cp=compteDe(nom);
-  if(cp && cp.c.mdp){
-    document.getElementById('la-user').value=nom;
-    zone.style.display='block'; go.style.display='';
-    setTimeout(()=>document.getElementById('la-mdp').focus(),50);
-  } else {
-    // Première connexion : création du mot de passe
-    closeM('asso'); openM('premier');
-    document.getElementById('pm-nom').textContent=nom;
-    document.getElementById('pm-user').value=nom;
-    setTimeout(()=>document.getElementById('pm-mdp').focus(),50);
-  }
+  document.getElementById('la-new').style.display='none';
+  document.getElementById('la-mdp').value=''; document.getElementById('la-mdp2').value='';
+  laMode='connexion'; go.textContent='Valider';
+  zone.style.display=nom?'block':'none'; go.style.display=nom?'':'none';
+  if(nom) refreshComptes(); // préchargement ; la vérification se fait au clic sur « Mot de passe »
 }
-async function creerPremierMdp(){
-  const nom=document.getElementById('pm-nom').textContent.trim();
-  const m=document.getElementById('pm-mdp').value, m2=document.getElementById('pm-mdp2').value;
-  document.getElementById('pm-err').classList.remove('on');
-  if(!nom) return;
-  if(m.length<MDP_MIN) return errM('pm-err','Mot de passe trop court ('+MDP_MIN+' caractères minimum).');
-  if(m!==m2) return errM('pm-err','Les deux mots de passe ne correspondent pas.');
+// Au clic sur le champ « Mot de passe » : si l'association n'a pas encore de mot de passe, on propose de le créer
+async function verifierMdpExiste(){
+  const nom=document.getElementById('la-nom').value.trim(); if(!nom) return;
   await refreshComptes();
   const cp=compteDe(nom);
-  if(cp && cp.c.mdp) return errM('pm-err','Un mot de passe existe déjà pour cette association. Contactez le service des sports.');
+  const creer=!(cp && cp.c.mdp);
+  laMode=creer?'creation':'connexion';
+  document.getElementById('la-new').style.display=creer?'block':'none';
+  document.getElementById('la-go').textContent=creer?'Créer mon mot de passe':'Valider';
+  document.getElementById('la-mdp').placeholder=creer?'Créer votre mot de passe':'Votre mot de passe';
+}
+async function creerMdpAsso(nom){
+  const m=document.getElementById('la-mdp').value, m2=document.getElementById('la-mdp2').value;
+  if(m.length<MDP_MIN) return errM('la-err','Mot de passe trop court ('+MDP_MIN+' caractères minimum).');
+  if(m!==m2) return errM('la-err','Les deux mots de passe ne correspondent pas.');
+  await refreshComptes();
+  const cp=compteDe(nom);
+  if(cp && cp.c.mdp) return errM('la-err','Un mot de passe existe déjà pour cette association. Contactez le service des sports.');
   S.comptes[nom]={ mdp:await hashMdp(m), createdAt:new Date().toISOString() };
   if(!await saveComptes()) return;
-  closeM('premier');
+  closeM('asso');
   toast('✅ Mot de passe enregistré. Connectez-vous avec votre association.','ok');
 }
 async function valAsso(){
@@ -1271,9 +1253,9 @@ async function valAsso(){
   const mdp=document.getElementById('la-mdp').value;
   document.getElementById('la-err').classList.remove('on');
   if(!nom) return errM('la-err','Choisissez votre association.');
-  await refreshComptes();
+  await verifierMdpExiste();
+  if(laMode==='creation'){ if(document.getElementById('la-mdp2').value) return creerMdpAsso(nom); document.getElementById('la-mdp2').focus(); return; }
   const cp=compteDe(nom);
-  if(!cp || !cp.c.mdp){ assoChoisie(); return; }
   if(!(await verifMdp(cp.c.mdp,mdp))){ errM('la-err','Mot de passe incorrect.'); document.getElementById('la-mdp').select(); return; }
   if(!estHash(cp.c.mdp)){ cp.c.mdp=await hashMdp(mdp); saveComptes(); }
   // On ne mémorise QUE le nom de l'association, jamais le mot de passe
