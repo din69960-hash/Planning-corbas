@@ -2369,7 +2369,16 @@ async function asDel(name){
     else { const all=JSON.parse(localStorage.getItem('cren')||'[]').filter(r=>normName(r.association)!==normName(name)); localStorage.setItem('cren',JSON.stringify(all)); }
   }
   CFG.assos=(CFG.assos||[]).filter(a=>a!==name);
-  await asSave(); renderAssos(); toast('🗑️ Association retirée','ok');
+  await asSave();
+  // Efface aussi son mot de passe, sauf si elle reste proposée à la saisie (planning des manifestations)
+  let mdpMsg='';
+  const encoreProposee=assoOptions().some(a=>normName(a)===normName(name));
+  if(!encoreProposee){
+    await refreshComptes();
+    const cp=compteDe(name);
+    if(cp){ delete S.comptes[cp.cle]; if(await saveComptes()) mdpMsg=' (mot de passe effacé)'; }
+  }
+  renderAssos(); renderMdpAssos(); toast('🗑️ Association retirée'+mdpMsg,'ok');
 }
 
 // =====================================================================
