@@ -993,9 +993,8 @@ const CLIENT_ID = 'c_' + Math.random().toString(36).slice(2) + Date.now().toStri
 const S = {
   role: null, pending: null,
   locked: false,
-  pwdAdmin: 'Corbas',
   assoNom: null,          // association connectée
-  comptes: {},            // { nom: { mdp:<empreinte>, ... } } — table settings, clé comptes_asso
+  token: null,            // jeton de session délivré par la base à la connexion
   nbCren: 3
 };
 
@@ -1038,18 +1037,16 @@ function openModal(role){
 function closeModal(){ document.getElementById('modal-pwd').classList.remove('on'); }
 async function checkPwd(){
   const v = document.getElementById('modal-in').value.trim();
-  await refreshAdminPwd();
-  const ok = await verifMdp(S.pwdAdmin, v);
-  if(ok){
-    // Migration : ancien mot de passe en clair remplacé par son empreinte
-    if(!estHash(S.pwdAdmin)){ S.pwdAdmin=await hashMdp(v); if(sb) try{ await sb.from('settings').upsert({key:'pwd_admin',value:S.pwdAdmin}); }catch(e){} }
-    closeModal(); login('admin');
-  }
-  else{
-    document.getElementById('modal-in').classList.add('err');
-    document.getElementById('modal-err').classList.add('on');
-    document.getElementById('modal-in').select();
-  }
+  const errEl=document.getElementById('modal-err');
+  let r=null, msg='❌ Mot de passe incorrect';
+  try{ r=await rpc('auth_connexion',{p_site:'creneaux',p_role:'admin',p_nom:'',p_mdp:v}); }
+  catch(e){ msg='❌ '+e.message; }
+  if(r && r.token){ S.token=r.token; closeModal(); login('admin'); return; }
+  if(r && r.erreur) msg='❌ '+r.erreur;
+  errEl.textContent=msg;
+  document.getElementById('modal-in').classList.add('err');
+  errEl.classList.add('on');
+  document.getElementById('modal-in').select();
 }
 function login(role){
   S.role = role;
@@ -1071,7 +1068,8 @@ function login(role){
   }
 }
 function logout(){
-  S.role=null; S.assoNom=null;
+  if(S.token && sb){ sb.rpc('auth_deconnexion',{p_token:S.token}).then(()=>{},()=>{}); }
+  S.role=null; S.assoNom=null; S.token=null;
   document.getElementById('app-asso').classList.remove('on');
   document.getElementById('app-admin').classList.remove('on');
   document.getElementById('screen-login').style.display='flex';
@@ -1130,7 +1128,7 @@ function renderLockStatus(){
 }
 async function setLock(v){
   S.locked=v; applyLock();
-  if(sb) try{ await sb.from('settings').upsert({key:'locked',value:String(v)}); }catch(e){}
+  if(sb) try{ await rpc('cr_reglage',{p_token:S.token,p_cle:'locked',p_valeur:String(v)}); }catch(e){ toast('Erreur : '+e.message,'err'); }
   toast(v?'🔒 Site verrouillé':'🔓 Site déverrouillé', v?'warn':'ok');
 }
 
@@ -1141,30 +1139,26 @@ async function changePwd(role){
   if(!np){ toast('Saisir un mot de passe','err'); return; }
   if(np!==cp){ toast('Les mots de passe ne correspondent pas','err'); return; }
   if(role==='asso') return; // plus de mot de passe association commun
-  S.pwdAdmin=await hashMdp(np);
-  if(sb) try{ await sb.from('settings').upsert({key:'pwd_admin',value:S.pwdAdmin}); }catch(e){}
-  else localStorage.setItem('pwd_admin',S.pwdAdmin);
+  if(np.length<MDP_MIN){ toast('Mot de passe trop court ('+MDP_MIN+' caractères minimum)','err'); return; }
+  try{ await rpc('auth_definir_mdp',{p_site:'creneaux',p_token:S.token,p_role:'admin',p_nom:'',p_nouveau:np}); }
+  catch(e){ toast('Erreur : '+e.message,'err'); return; }
   document.getElementById(`np-${role==='asso'?'asso':'adm'}`).value='';
   document.getElementById(`cp-${role==='asso'?'asso':'adm'}`).value='';
-  toast(`✅ Mot de passe ${role==='asso'?'association':'administrateur'} modifié`,'ok');
+  toast('✅ Mot de passe administrateur modifié','ok');
 }
 
-// ===== MOTS DE PASSE : stockés uniquement sous forme d'empreinte =====
-// Format "h1$<sel>$<sha256(sel:mdp)>" : l'empreinte ne permet pas de retrouver le mot de passe.
+// ===== MOTS DE PASSE : vérifiés uniquement côté serveur (Supabase) =====
+// Le site ne lit plus jamais les mots de passe ni leurs empreintes : il envoie le mot de passe saisi
+// à la base, qui renvoie un jeton de session. Toutes les écritures exigent ce jeton.
 const MDP_MIN=6;
-function _hex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
-async function hashMdp(mdp){
-  const sel=_hex(crypto.getRandomValues(new Uint8Array(16)));
-  const h=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sel+':'+mdp));
-  return 'h1$'+sel+'$'+_hex(h);
-}
-function estHash(v){ return typeof v==='string' && v.startsWith('h1$'); }
-async function verifMdp(stocke,saisi){
-  if(!stocke || !saisi) return false;
-  if(!estHash(stocke)) return stocke===saisi; // ancien mot de passe en clair
-  const p=stocke.split('$');
-  const h=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(p[1]+':'+saisi));
-  return _hex(h)===p[2];
+async function rpc(fn,args){
+  if(!sb) throw new Error('Base de données indisponible');
+  const {data,error}=await sb.rpc(fn,args||{});
+  if(error){
+    if(error.code==='28000' && S.role){ toast('Session expirée : reconnectez-vous','err'); setTimeout(logout,1500); }
+    throw new Error(error.message||'Erreur serveur');
+  }
+  return data;
 }
 function toggleVoir(cb,ids){ ids.forEach(id=>masquer(document.getElementById(id), !cb.checked)); }
 function openM(id){
@@ -1176,26 +1170,8 @@ function openM(id){
 }
 function closeM(id){ document.getElementById('modal-'+id).classList.remove('on'); }
 function errM(id,txt){ const e=document.getElementById(id); e.textContent='❌ '+txt; e.classList.add('on'); }
-
-// Comptes des associations (empreintes) : clé « comptes_asso » de la table settings
-function setComptes(v){ const o=parseJSON(v); S.comptes=(o && typeof o==='object' && !Array.isArray(o))?o:{}; }
-async function refreshComptes(){
-  if(sb){ try{ const res=await avecDelai(sb.from('settings').select('value').eq('key','comptes_asso').maybeSingle()); if(res && !res.error) setComptes(res.data?.value||'{}'); }catch(e){} }
-  else setComptes(localStorage.getItem('comptes_asso')||'{}');
-}
-async function saveComptes(){
-  const val=JSON.stringify(S.comptes);
-  if(sb){ const {error}=await sb.from('settings').upsert({key:'comptes_asso',value:val}); if(error){ toast('Erreur : '+error.message,'err'); return false; } }
-  else localStorage.setItem('comptes_asso',val);
-  return true;
-}
-async function refreshAdminPwd(){
-  if(sb){ try{ const res=await avecDelai(sb.from('settings').select('value').eq('key','pwd_admin').maybeSingle()); if(res?.data?.value) S.pwdAdmin=res.data.value; }catch(e){} }
-  else { const v=localStorage.getItem('pwd_admin'); if(v) S.pwdAdmin=v; }
-}
 // Évite qu'une requête qui ne répond pas bloque la fenêtre de connexion
 function avecDelai(promesse,ms){ return Promise.race([promesse, new Promise(r=>setTimeout(()=>r(null),ms||5000))]); }
-function compteDe(nom){ const k=Object.keys(S.comptes).find(n=>normName(n)===normName(nom)); return k?{cle:k,c:S.comptes[k]}:null; }
 
 // Connexion association
 async function openAssoLogin(){
@@ -1225,14 +1201,12 @@ async function assoChoisie(){
   document.getElementById('la-mdp').value=''; document.getElementById('la-mdp2').value='';
   laMode='connexion'; go.textContent='Valider';
   zone.style.display=nom?'block':'none'; go.style.display=nom?'':'none';
-  if(nom) refreshComptes(); // préchargement ; la vérification se fait au clic sur « Mot de passe »
 }
 // Au clic sur le champ « Mot de passe » : si l'association n'a pas encore de mot de passe, on propose de le créer
 async function verifierMdpExiste(){
   const nom=document.getElementById('la-nom').value.trim(); if(!nom) return;
-  await refreshComptes();
-  const cp=compteDe(nom);
-  const creer=!(cp && cp.c.mdp);
+  let a=true; try{ a=await rpc('auth_a_mdp',{p_site:'creneaux',p_nom:nom}); }catch(e){}
+  const creer=!a;
   laMode=creer?'creation':'connexion';
   document.getElementById('la-new').style.display=creer?'block':'none';
   document.getElementById('la-go').textContent=creer?'Créer mon mot de passe':'Valider';
@@ -1242,11 +1216,8 @@ async function creerMdpAsso(nom){
   const m=document.getElementById('la-mdp').value, m2=document.getElementById('la-mdp2').value;
   if(m.length<MDP_MIN) return errM('la-err','Mot de passe trop court ('+MDP_MIN+' caractères minimum).');
   if(m!==m2) return errM('la-err','Les deux mots de passe ne correspondent pas.');
-  await refreshComptes();
-  const cp=compteDe(nom);
-  if(cp && cp.c.mdp) return errM('la-err','Un mot de passe existe déjà pour cette association. Contactez le service des sports.');
-  S.comptes[nom]={ mdp:await hashMdp(m), createdAt:new Date().toISOString() };
-  if(!await saveComptes()) return;
+  try{ await rpc('auth_creer_mdp',{p_site:'creneaux',p_nom:nom,p_mdp:m}); }
+  catch(e){ return errM('la-err',e.message); }
   closeM('asso');
   toast('✅ Mot de passe enregistré. Connectez-vous avec votre association.','ok');
 }
@@ -1257,30 +1228,30 @@ async function valAsso(){
   if(!nom) return errM('la-err','Choisissez votre association.');
   await verifierMdpExiste();
   if(laMode==='creation'){ if(document.getElementById('la-mdp2').value) return creerMdpAsso(nom); document.getElementById('la-mdp2').focus(); return; }
-  const cp=compteDe(nom);
-  if(!(await verifMdp(cp.c.mdp,mdp))){ errM('la-err','Mot de passe incorrect.'); document.getElementById('la-mdp').select(); return; }
-  if(!estHash(cp.c.mdp)){ cp.c.mdp=await hashMdp(mdp); saveComptes(); }
+  let r=null;
+  try{ r=await rpc('auth_connexion',{p_site:'creneaux',p_role:'asso',p_nom:nom,p_mdp:mdp}); }
+  catch(e){ return errM('la-err',e.message); }
+  if(!r || !r.token){ errM('la-err',(r&&r.erreur)||'Mot de passe incorrect.'); document.getElementById('la-mdp').select(); return; }
   // On ne mémorise QUE le nom de l'association, jamais le mot de passe
   if(document.getElementById('la-remember').checked) localStorage.setItem('asso_remember',JSON.stringify({nom}));
   else localStorage.removeItem('asso_remember');
-  S.assoNom=nom;
+  S.token=r.token;
+  S.assoNom=r.nom||nom;
   closeM('asso');
   login('asso');
-  toast('✅ Bonjour '+nom+' !','ok');
+  toast('✅ Bonjour '+S.assoNom+' !','ok');
 }
+
 // Association connectée : modifier son mot de passe (ancien obligatoire)
 function openChg(){ openM('chg'); document.getElementById('chg-sub').textContent=S.assoNom||''; }
 async function changerMonMdp(){
   if(S.role!=='asso' || !S.assoNom) return;
   const old=document.getElementById('chg-old').value, n=document.getElementById('chg-new').value, c=document.getElementById('chg-new2').value;
   document.getElementById('chg-err').classList.remove('on');
-  await refreshComptes();
-  const cp=compteDe(S.assoNom);
-  if(!cp || !(await verifMdp(cp.c.mdp,old))) return errM('chg-err','Ancien mot de passe incorrect.');
   if(n.length<MDP_MIN) return errM('chg-err','Nouveau mot de passe trop court ('+MDP_MIN+' caractères minimum).');
   if(n!==c) return errM('chg-err','Les deux nouveaux mots de passe ne correspondent pas.');
-  cp.c.mdp=await hashMdp(n);
-  if(!await saveComptes()) return;
+  try{ await rpc('auth_changer_mon_mdp',{p_site:'creneaux',p_token:S.token,p_ancien:old,p_nouveau:n}); }
+  catch(e){ return errM('chg-err',e.message); }
   closeM('chg'); toast('✅ Mot de passe modifié','ok');
 }
 // Administrateur : définir le mot de passe d'une association (sans l'ancien)
@@ -1297,33 +1268,31 @@ async function validerResetMdp(){
   document.getElementById('rm-err').classList.remove('on');
   if(n.length<MDP_MIN) return errM('rm-err','Mot de passe trop court ('+MDP_MIN+' caractères minimum).');
   if(n!==c) return errM('rm-err','Les deux mots de passe ne correspondent pas.');
-  await refreshComptes();
-  const cp=compteDe(resetNom);
-  const cle=cp?cp.cle:resetNom;
-  S.comptes[cle]={ ...(cp?cp.c:{}), mdp:await hashMdp(n), majAt:new Date().toISOString() };
-  if(!await saveComptes()) return;
+  try{ await rpc('auth_definir_mdp',{p_site:'creneaux',p_token:S.token,p_role:'asso',p_nom:resetNom,p_nouveau:n}); }
+  catch(e){ return errM('rm-err',e.message); }
   closeM('reset'); renderMdpAssos();
   toast('✅ Mot de passe de '+resetNom+' remplacé','ok');
 }
 async function effacerMdpAsso(){
   if(S.role!=='admin' || !resetNom) return;
   if(!confirm(`Effacer le mot de passe de « ${resetNom} » ?\nL'association devra en créer un nouveau à sa prochaine connexion.`)) return;
-  await refreshComptes();
-  const cp=compteDe(resetNom); if(cp) delete S.comptes[cp.cle];
-  if(!await saveComptes()) return;
+  try{ await rpc('auth_definir_mdp',{p_site:'creneaux',p_token:S.token,p_role:'asso',p_nom:resetNom,p_nouveau:''}); }
+  catch(e){ return errM('rm-err',e.message); }
   closeM('reset'); renderMdpAssos();
   toast('Mot de passe effacé : '+resetNom,'ok');
 }
 // Liste des mots de passe dans le menu Associations
 async function renderMdpAssos(){
   const box=document.getElementById('mdp-assos-body'); if(!box) return;
-  await refreshComptes();
   const list=assoOptions();
   if(!list.length){ box.innerHTML='<p style="font-size:13px;color:var(--gris2)">Aucune association.</p>'; return; }
+  let avec=new Set();
+  try{ avec=new Set((await rpc('auth_liste_comptes',{p_site:'creneaux',p_token:S.token})||[]).map(normName)); }
+  catch(e){ box.innerHTML='<p style="font-size:13px;color:var(--rouge)">Impossible de lire les comptes : '+esc(e.message)+'</p>'; return; }
   box.innerHTML=`<table class="rc" style="min-width:0"><thead><tr><th>Association</th><th>Mot de passe</th><th></th></tr></thead><tbody>${list.map(a=>{
-    const cp=compteDe(a);
+    const ok=avec.has(normName(a));
     return `<tr><td><b>${esc(a)}</b></td>
-      <td>${cp&&cp.c.mdp?'<span style="color:var(--vert);font-weight:700">✅ défini</span>':'<span style="color:#b45309;font-weight:700">⚠️ pas encore (créé à la 1re connexion)</span>'}</td>
+      <td>${ok?'<span style="color:var(--vert);font-weight:700">✅ défini</span>':'<span style="color:#b45309;font-weight:700">⚠️ pas encore (créé à la 1re connexion)</span>'}</td>
       <td><button class="btn btn-primary" style="flex:none;padding:6px 12px;font-size:12px" onclick="ouvrirResetMdp(${esc(JSON.stringify(a))})">🔑 Mot de passe</button></td></tr>`; }).join('')}</tbody></table>`;
 }
 
@@ -1453,9 +1422,7 @@ async function savePlanning(){
   if(rows.length===0){ toast('Aucun créneau saisi','warn'); return; }
   if(sb && SB_CONFIGURED){
     try{
-      await sb.from('creneaux').delete().eq('association',assoName).eq('lieu',lieu);
-      const {error} = await sb.from('creneaux').insert(rows);
-      if(error) throw error;
+      await rpc('cr_enregistrer',{p_token:S.token,p_association:assoName,p_lieu:lieu,p_lignes:rows});
       toast(`✅ ${rows.length} créneau(x) enregistré(s)`,'ok');
     }catch(e){ toast('Erreur : '+e.message,'err'); }
   } else {
@@ -1558,8 +1525,7 @@ async function deleteSelected(){
   if(!confirm(`Supprimer ${ids.length} créneau(x) ?`)) return;
   if(sb){
     try{
-      const {error}=await sb.from('creneaux').delete().in('id',ids);
-      if(error) throw error;
+      await rpc('cr_supprimer',{p_token:S.token,p_ids:ids.map(Number)});
       SEL.clear();
       toast(`✅ ${ids.length} supprimé(s)`,'ok');
       admLoadPlan(); loadDash();
@@ -1693,8 +1659,7 @@ async function saveCfg(k){
   const val=JSON.stringify(CFG[k]);
   if(sb){
     try{
-      const {error}=await sb.from('settings').upsert({key:'cfg_'+k, value:val});
-      if(error) throw error;
+      await rpc('cr_reglage',{p_token:S.token,p_cle:'cfg_'+k,p_valeur:val});
       setSaveState('💾 Modifications enregistrées');
     }catch(e){ toast('Erreur d’enregistrement : '+e.message,'err'); setSaveState('⚠️ Non enregistré','err'); return false; }
   } else { localStorage.setItem('cfg_'+k,val); setSaveState('💾 Enregistré (test local)'); }
@@ -2323,8 +2288,8 @@ async function renameCrensAsso(oldName,newName){
     let crens=[]; try{ crens=await fetchCreneaux(); }catch(e){ toast('Erreur : '+e.message,'err'); return false; }
     const ids=crens.filter(r=>String(r.association||'').trim()===oldName).map(r=>r.id);
     for(let i=0;i<ids.length;i+=200){
-      const {error}=await sb.from('creneaux').update({association:newName}).in('id',ids.slice(i,i+200));
-      if(error){ toast('Erreur : '+error.message,'err'); return false; }
+      try{ await rpc('cr_modifier',{p_token:S.token,p_champs:{association:newName},p_ids:ids.slice(i,i+200).map(Number)}); }
+      catch(e){ toast('Erreur : '+e.message,'err'); return false; }
     }
   } else {
     const all=JSON.parse(localStorage.getItem('cren')||'[]').map(r=>String(r.association||'').trim()===oldName?{...r,association:newName}:r);
@@ -2349,9 +2314,7 @@ async function asRename(oldName,newName){
   const variants=[...new Set(crens.map(r=>String(r.association||'').trim()).filter(x=>normName(x)===normName(oldName)))];
   const target=clash||newName;
   for(const v of variants){ if(v!==target && !await renameCrensAsso(v,target)) return; }
-  await refreshComptes();
-  const cpOld=compteDe(oldName);
-  if(cpOld && !compteDe(target)){ delete S.comptes[cpOld.cle]; S.comptes[target]=cpOld.c; await saveComptes(); }
+  try{ await rpc('auth_renommer_compte',{p_site:'creneaux',p_token:S.token,p_ancien:oldName,p_nouveau:target}); }catch(e){}
   CFG.assos=(CFG.assos||[]).filter(a=>a!==oldName); if(!clash) CFG.assos.push(newName);
   await asSave(); renderAssos(); toast('✅ Association renommée (créneaux mis à jour)','ok');
 }
@@ -2365,7 +2328,7 @@ async function asDel(name){
   const mine=crens.filter(r=>normName(r.association)===normName(name));
   if(!confirm(`Retirer « ${name} » de la liste ?`)) return;
   if(mine.length && confirm(`« ${name} » a ${mine.length} créneau(x) enregistré(s).\n\nOK = supprimer aussi ces créneaux\nAnnuler = garder les créneaux`)){
-    if(sb){ const {error}=await sb.from('creneaux').delete().in('id',mine.map(r=>r.id)); if(error){ toast('Erreur : '+error.message,'err'); return; } }
+    if(sb){ try{ await rpc('cr_supprimer',{p_token:S.token,p_ids:mine.map(r=>Number(r.id))}); }catch(e){ toast('Erreur : '+e.message,'err'); return; } }
     else { const all=JSON.parse(localStorage.getItem('cren')||'[]').filter(r=>normName(r.association)!==normName(name)); localStorage.setItem('cren',JSON.stringify(all)); }
   }
   CFG.assos=(CFG.assos||[]).filter(a=>a!==name);
@@ -2374,9 +2337,7 @@ async function asDel(name){
   let mdpMsg='';
   const encoreProposee=assoOptions().some(a=>normName(a)===normName(name));
   if(!encoreProposee){
-    await refreshComptes();
-    const cp=compteDe(name);
-    if(cp){ delete S.comptes[cp.cle]; if(await saveComptes()) mdpMsg=' (mot de passe effacé)'; }
+    try{ await rpc('auth_definir_mdp',{p_site:'creneaux',p_token:S.token,p_role:'asso',p_nom:name,p_nouveau:''}); mdpMsg=' (mot de passe effacé)'; }catch(e){}
   }
   renderAssos(); renderMdpAssos(); toast('🗑️ Association retirée'+mdpMsg,'ok');
 }
@@ -2475,8 +2436,8 @@ async function lxRenameEsp(li,ei,v){
   if(l.espaces.some((e,i)=>i!==ei && normName(e)===normName(v))){ toast('Cette salle existe déjà','err'); renderLieux(); return; }
   // Renomme aussi la salle dans les créneaux déjà enregistrés
   if(sb){
-    const {error}=await sb.from('creneaux').update({espace:v}).eq('lieu',l.id).eq('espace',old);
-    if(error){ toast('Erreur : '+error.message,'err'); renderLieux(); return; }
+    try{ await rpc('cr_modifier',{p_token:S.token,p_champs:{espace:v},p_lieu:l.id,p_espace:old}); }
+    catch(e){ toast('Erreur : '+e.message,'err'); renderLieux(); return; }
   } else {
     const all=JSON.parse(localStorage.getItem('cren')||'[]').map(r=>(r.lieu===l.id&&r.espace===old)?{...r,espace:v}:r);
     localStorage.setItem('cren',JSON.stringify(all));
@@ -2495,8 +2456,8 @@ async function lxDelEsp(li,ei){
 }
 async function deleteCrens(lieu,espace){
   if(sb){
-    let q=sb.from('creneaux').delete().eq('lieu',lieu); if(espace) q=q.eq('espace',espace);
-    const {error}=await q; if(error){ toast('Erreur : '+error.message,'err'); return false; }
+    try{ await rpc('cr_supprimer',{p_token:S.token,p_lieu:lieu,p_espace:espace||null}); }
+    catch(e){ toast('Erreur : '+e.message,'err'); return false; }
   } else {
     const all=JSON.parse(localStorage.getItem('cren')||'[]').filter(r=>!(r.lieu===lieu && (!espace||r.espace===espace)));
     localStorage.setItem('cren',JSON.stringify(all));
@@ -3013,8 +2974,6 @@ function onRealtimeSettings(payload){
   const r=payload.new||{};
   if(r.key && r.key.startsWith('cfg_')){ if(applyCfgRow(r.key,r.value)) refreshAfterCfg(r.key.slice(4)); return; }
   if(r.key==='locked'){ S.locked=r.value==='true'; applyLock(); }
-  if(r.key==='pwd_admin') S.pwdAdmin=r.value;
-  if(r.key==='comptes_asso'){ setComptes(r.value); if(isVisible('mdp-assos-body')) renderMdpAssos(); }
 }
 function initRealtime(){
   if(!sb) return;
@@ -3033,8 +2992,6 @@ window.addEventListener('load',async()=>{
       const {data}=await sb.from('settings').select('*');
       if(data) data.forEach(r=>{
         if(r.key==='locked')    S.locked   = r.value==='true';
-        if(r.key==='pwd_admin') S.pwdAdmin = r.value;
-        if(r.key==='comptes_asso') setComptes(r.value);
         applyCfgRow(r.key, r.value);
       });
     }catch(e){}
