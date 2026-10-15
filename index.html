@@ -567,6 +567,8 @@
     .printing .bi { border:none; background:transparent !important; padding:0; width:auto; }
     * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
   }
+input[data-mdp]{-webkit-text-security:disc;}
+input[data-mdp].mdp-vu{-webkit-text-security:none;}
 </style>
 </head>
 <body>
@@ -1026,7 +1028,7 @@ function openModal(role){
   document.getElementById('modal-title').textContent = role==='asso' ? 'Accès Association' : 'Accès Administrateur';
   document.getElementById('modal-sub').textContent = role==='asso' ? 'Mot de passe associatif' : 'Mot de passe administrateur';
   document.getElementById('modal-in').value='';
-  document.getElementById('modal-in').type='password';
+  masquer(document.getElementById('modal-in'),true);
   document.querySelectorAll('#modal-pwd .voir-mdp input').forEach(c=>c.checked=false);
   document.getElementById('modal-in').classList.remove('err');
   document.getElementById('modal-err').classList.remove('on');
@@ -1164,10 +1166,10 @@ async function verifMdp(stocke,saisi){
   const h=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(p[1]+':'+saisi));
   return _hex(h)===p[2];
 }
-function toggleVoir(cb,ids){ ids.forEach(id=>{ const i=document.getElementById(id); if(i) i.type=cb.checked?'text':'password'; }); }
+function toggleVoir(cb,ids){ ids.forEach(id=>masquer(document.getElementById(id), !cb.checked)); }
 function openM(id){
   const m=document.getElementById('modal-'+id);
-  m.querySelectorAll('input[type=password],input[type=text]').forEach(i=>{ if(i.id && !i.id.endsWith('-user')){ i.value=''; } });
+  m.querySelectorAll('input[type=password],input[type=text],input[data-mdp]').forEach(i=>{ if(i.id && !i.id.endsWith('-user')){ i.value=''; } });
   m.querySelectorAll('.voir-mdp input').forEach(c=>{ if(c.onchange){ c.checked=false; c.onchange(); } });
   m.querySelectorAll('.err-msg').forEach(e=>{ e.classList.remove('on'); e.textContent=''; });
   m.classList.add('on');
@@ -3034,6 +3036,24 @@ window.addEventListener('load',async()=>{
   }
   buildTable();
 });
+
+// ===== Champs mot de passe masqués sans être reconnus par le gestionnaire du navigateur =====
+// (évite la liste « Full / Gymnastique / test – Depuis ce site web » sous le champ)
+const MASQUE_CSS = !!(window.CSS && CSS.supports && CSS.supports('-webkit-text-security','disc'));
+function masquer(i,cache){
+  if(!i) return;
+  if(i.dataset.mdp) i.classList.toggle('mdp-vu', !cache);
+  else i.type = cache ? 'password' : 'text';
+}
+function preparerChampsMdp(){
+  if(!MASQUE_CSS) return;
+  document.querySelectorAll('input[type=password]').forEach(i=>{
+    i.type='text'; i.dataset.mdp='1';
+    i.setAttribute('autocomplete','off'); i.setAttribute('autocorrect','off');
+    i.setAttribute('autocapitalize','off'); i.spellcheck=false;
+  });
+}
+preparerChampsMdp();
 </script>
 </body>
 </html>
