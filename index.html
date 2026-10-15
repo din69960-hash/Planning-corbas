@@ -2240,7 +2240,8 @@ function renderAssoSelect(){
     return;
   }
   if(S.role==='asso' && S.assoNom){
-    w.innerHTML=`<select id="asso-name" disabled><option value="${esc(S.assoNom)}" selected>${esc(S.assoNom)}</option></select>`;
+    // Association connectée : nom affiché en simple texte (pas de menu déroulant)
+    w.innerHTML=`<input id="asso-name" type="text" value="${esc(S.assoNom)}" readonly tabindex="-1" style="background:#F4F7FB;cursor:default;font-weight:700;color:var(--bleu)">`;
     return;
   }
   w.innerHTML=`<select id="asso-name"><option value="">— Choisir votre association —</option>${list.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select>`;
@@ -3049,7 +3050,9 @@ function preparerChampsMdp(){
   if(!MASQUE_CSS) return;
   document.querySelectorAll('input[type=password]').forEach(i=>{
     i.type='text'; i.dataset.mdp='1';
-    i.setAttribute('autocomplete','off'); i.setAttribute('autocorrect','off');
+    // « one-time-code » : le gestionnaire de mots de passe d'Edge/Chrome ignore ces champs
+    i.setAttribute('autocomplete','one-time-code');
+    i.setAttribute('data-lpignore','true'); i.setAttribute('data-1p-ignore','true'); i.setAttribute('data-form-type','other'); i.setAttribute('autocorrect','off');
     i.setAttribute('autocapitalize','off'); i.spellcheck=false;
   });
 }
